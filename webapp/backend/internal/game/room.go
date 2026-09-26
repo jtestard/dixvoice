@@ -238,13 +238,13 @@ func (r *Room) RemoveCompanion(id string) error {
 	return newError(CodePlayerNotFound, "unknown player")
 }
 
-// Start begins a new game. pool is the audio service's full list; the room
-// deals from it minus its used sounds.
+// Start begins a game from the lobby. pool is the audio service's full list;
+// the room deals from it minus its used sounds.
 func (r *Room) Start(pool []Clip) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.Status == StatusPlaying {
-		return newError(CodeInvalidPhase, "the game has already started")
+	if r.Status != StatusLobby {
+		return newError(CodeInvalidPhase, "a game can only start in the lobby")
 	}
 	if len(r.Players) < MinPlayers {
 		return newError(CodeNotEnoughPlayers, fmt.Sprintf("at least %d players are needed", MinPlayers))
@@ -492,16 +492,27 @@ func (r *Room) reveal() {
 	}
 	r.Round.Reveal = &Reveal{Results: results, Points: points}
 	r.Round.Phase = PhaseReveal
-	reached := false
 	for _, p := range r.Players {
 		p.Score += points[p.ID]
+	}
+}
+
+func (r *Room) reachedTarget() bool {
+	for _, p := range r.Players {
 		if p.Score >= TargetScore {
-			reached = true
+			return true
 		}
 	}
-	if reached {
-		r.finish()
+	return false
+}
+
+func (r *Room) NeedsNextRoundPool() (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.requirePhase(PhaseReveal); err != nil {
+		return false, err
 	}
+	return !r.reachedTarget(), nil
 }
 
 func (r *Room) finish() {
@@ -528,6 +539,10 @@ func (r *Room) NextRound(pool []Clip) error {
 	defer r.mu.Unlock()
 	if err := r.requirePhase(PhaseReveal); err != nil {
 		return err
+	}
+	if r.reachedTarget() {
+		r.finish()
+		return nil
 	}
 	if !r.canDeal(pool) {
 		r.finish()

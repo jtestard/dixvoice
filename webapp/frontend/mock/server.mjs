@@ -237,7 +237,7 @@ function handle(room, player, msg) {
   const inHand = (id) => player.hand.find((c) => c.clipId === id)
   switch (msg.type) {
     case 'start_game':
-      if (room.status === 'playing') return err('invalid_phase', 'Game already started')
+      if (room.status !== 'lobby') return err('invalid_phase', 'A game can only start in the lobby')
       if (room.players.length < 4) return err('not_enough_players', 'At least 4 players are needed')
       startGame(room)
       return null

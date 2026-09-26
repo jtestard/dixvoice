@@ -460,7 +460,11 @@ func (s *Server) handleMessage(ctx context.Context, seat game.Seat, c *client, m
 		err = room.Vote(pid, msg.ClipID)
 	case "next_round":
 		var pool []game.Clip
-		pool, err = s.pool(ctx)
+		var needsPool bool
+		needsPool, err = room.NeedsNextRoundPool()
+		if err == nil && needsPool {
+			pool, err = s.pool(ctx)
+		}
 		if err == nil {
 			err = room.NextRound(pool)
 		}

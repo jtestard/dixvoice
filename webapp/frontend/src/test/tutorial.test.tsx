@@ -22,7 +22,7 @@ describe('tutorialCue', () => {
       { screen: 'game', state: playingState('p1', { phase: 'vote' }), label: 'STEP 3/4', body: 'Waiting for the votes. Storyteller: you want some players to find your clip, but not all.' },
       { screen: 'game', state: playingState('p4', { phase: 'vote', yourVote: 't1' }), label: 'STEP 3/4', body: 'Waiting for the votes. Storyteller: you want some players to find your clip, but not all.' },
       { screen: 'game', state: playingState('p4', REVEAL_ROUND), label: 'STEP 4/4', body: "If everyone or no one found the storyteller's clip, the storyteller scores 0 and everyone else 2. Otherwise the storyteller and each finder score 3. You also get 1 point per vote your clip received." },
-      { screen: 'endGame', state: finishedState(), label: 'HOW TO PLAY', body: 'First to 10 points wins. Start a new game with the same players, or stop to close the room.' },
+      { screen: 'endGame', state: finishedState(), label: 'HOW TO PLAY', body: 'First to 10 points wins. The session is complete. Leave the room, or press Stop to close it for everyone.' },
     ]
     for (const { screen: currentScreen, state, label, body } of cases) {
       expect(tutorialCue(state, currentScreen)).toEqual(expect.objectContaining({ label, body }))
@@ -117,6 +117,21 @@ describe('tutorial interactions', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Got it' }))
     receive(playingState('p4', { phase: 'vote', table: [], yourSubmission: 'h2', yourVote: 't1' }))
     expect(screen.getByLabelText('How to play cue')).toHaveTextContent('Waiting for the votes.')
+  })
+
+  it('keeps the scored reveal visible until the next-round transition', async () => {
+    render(<App />)
+    const reveal = playingState('p4', REVEAL_ROUND)
+    receive({ ...reveal, players: reveal.players.map((p) => p.playerId === 'p3' ? { ...p, score: 11 } : p) })
+    expect(screen.getByRole('status', { name: 'Your round result' })).toHaveTextContent('Round win · +4')
+    expect(screen.getByRole('button', { name: 'Next round' })).toBeInTheDocument()
+    expect(screen.queryByText('Game over')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Next round' }))
+    receive(finishedState())
+    expect(screen.getByText('Game over')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'New game' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('The session is complete.')
   })
 
   it('keeps working if tutorial storage is unavailable', async () => {

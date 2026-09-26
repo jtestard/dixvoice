@@ -32,7 +32,7 @@ export function tutorialCue(state: GameState | null, screen: TutorialScreen): Tu
     return {
       key: `${room}:endGame`,
       label: 'HOW TO PLAY',
-      body: 'First to 10 points wins. Start a new game with the same players, or stop to close the room.',
+      body: 'First to 10 points wins. The session is complete. Leave the room, or press Stop to close it for everyone.',
     }
   }
 

@@ -430,10 +430,11 @@ func TestEndToEndGame(t *testing.T) {
 				t.Fatalf("bad storyteller reveal %+v", res)
 			}
 		}
-		if ps[0].state.Room.Status == game.StatusPlaying {
-			ps[3].send(map[string]any{"type": "next_round"})
-			all(ps, func(p *player) { p.expectState() })
+		if ps[0].state.Room.Status != game.StatusPlaying || len(ps[0].state.WinnerIDs) != 0 {
+			t.Fatalf("reveal should remain playable before Next round: %+v", ps[0].state.Room)
 		}
+		ps[3].send(map[string]any{"type": "next_round"})
+		all(ps, func(p *player) { p.expectState() })
 	}
 	// Scores: storyteller 3, two finders 3(+1 possibly) per round: 10 reached
 	// after 3 or 4 rounds.
@@ -456,18 +457,9 @@ func TestEndToEndGame(t *testing.T) {
 	}
 	ps[1] = np
 
-	// New game in the same room: scores reset, dealt clips are all new.
+	// A completed session cannot start another game.
 	ps[0].send(map[string]any{"type": "start_game"})
-	all(ps, func(p *player) { p.expectState() })
-	if ps[0].state.Room.Status != game.StatusPlaying || ps[0].state.Round.Number != 1 || len(ps[0].state.WinnerIDs) != 0 {
-		t.Fatalf("new game state %+v", ps[0].state)
-	}
-	for _, s := range ps[0].state.Players {
-		if s.Score != 0 {
-			t.Fatal("scores not reset")
-		}
-	}
-	recordHands()
+	ps[0].expectError(game.CodeInvalidPhase)
 
 	// Stop: everyone gets room_closed, the socket closes, the room is gone.
 	ps[3].send(map[string]any{"type": "stop_game"})
