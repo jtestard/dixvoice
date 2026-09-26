@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { roundResult } from '../roundResult'
 import { setSfxEnabled, sfx, sfxEnabled } from '../sfx'
-import { roleBanner, type TutorialCue as Cue } from '../tutorial'
-import type { ClientMessage, CustomSlotState, GameState, Round } from '../types'
-import { CreateSoundForm, CustomSlotCard, type SoundDraft } from './CustomSound'
+import type { TutorialCue as Cue } from '../tutorial'
+import type { ClientMessage, GameState, Round } from '../types'
 import { ClipCard } from './ClipCard'
 import { Avatar, Confetti, PlayerName, Podium, ScoreTrack, Scoreboard, StopButton, playerColor } from './Common'
 import { Table } from './Table'
-import { RoleStrip, TutorialCue, type TourControls } from './TutorialCard'
+import { TutorialCue } from './TutorialCard'
 
 interface Props {
   state: GameState
@@ -17,22 +16,15 @@ interface Props {
 interface GameProps extends Props {
   tutorialEnabled?: boolean
   onToggleTutorial?: () => void
-  onReplayTour?: () => void
   cue?: Cue | null
-  tour?: TourControls | null
-  showScores?: boolean
-  onToggleScores?: () => void
 }
 
-export function Game({ state, send, tutorialEnabled, onToggleTutorial, onReplayTour, cue = null, tour = null, showScores, onToggleScores }: GameProps) {
-  const [localScores, setLocalScores] = useState(false)
-  const scoresOpen = showScores ?? localScores
-  const toggleScores = onToggleScores ?? (() => setLocalScores((s) => !s))
+export function Game({ state, send, tutorialEnabled, onToggleTutorial, cue = null }: GameProps) {
+  const [showScores, setShowScores] = useState(false)
   const [sound, setSound] = useState(sfxEnabled())
   const { round } = state
   const you = state.you.playerId
   const isStoryteller = round?.storytellerId === you
-  const banner = roleBanner(state)
 
   const toggleSound = () => {
     const on = !sound
@@ -44,14 +36,12 @@ export function Game({ state, send, tutorialEnabled, onToggleTutorial, onReplayT
   return (
     <main className="screen board">
       <div className="board__side">
-        <div data-tutorial="table">
-          <Table state={state} />
-        </div>
-        {tutorialEnabled && <TutorialCue cue={cue} tour={tour} />}
+        <Table state={state} />
+        {tutorialEnabled && <TutorialCue cue={cue} />}
       </div>
 
       <div className="board__main">
-        <header className="game-header" data-tutorial="header">
+        <header className="game-header">
           <span className="label game-header__room">
             Room <strong className="game-header__code">{state.room.code}</strong>
             {round && <> · Round {round.number}</>}
@@ -65,27 +55,22 @@ export function Game({ state, send, tutorialEnabled, onToggleTutorial, onReplayT
                 Help: {tutorialEnabled ? 'on' : 'off'}
               </button>
             )}
-            {tutorialEnabled && onReplayTour && (
-              <button type="button" className="btn btn--link btn--small game-header__replay" onClick={onReplayTour}>
-                Replay tour
-              </button>
-            )}
-            <button type="button" className="btn btn--secondary btn--small" onClick={toggleScores} aria-expanded={scoresOpen}>
-              {scoresOpen ? 'Hide scores' : 'Scores'}
+            <button type="button" className="btn btn--secondary btn--small" onClick={() => setShowScores((s) => !s)} aria-expanded={showScores}>
+              {showScores ? 'Hide scores' : 'Scores'}
             </button>
           </div>
         </header>
 
-        {banner && <RoleStrip banner={banner} detailed={!!tutorialEnabled} />}
-
-        {scoresOpen && (
-          <section className="panel" aria-label="Scoreboard" data-tutorial="scores">
+        {showScores && (
+          <section className="panel" aria-label="Scoreboard">
             <Scoreboard players={state.players} youId={you} targetScore={state.room.targetScore} />
           </section>
         )}
 
-        {round?.phase === 'storyteller' && (isStoryteller ? <StorytellerPhase state={state} send={send} /> : <WaitForClue state={state} send={send} />)}
-        {round?.phase === 'submit' && (isStoryteller ? <WaitForSubmissions state={state} /> : <SubmitPhase state={state} send={send} />)}
+        {round?.phase === 'storyteller' &&
+          (isStoryteller ? <StorytellerPhase state={state} send={send} /> : <WaitForClue state={state} />)}
+        {round?.phase === 'submit' &&
+          (isStoryteller ? <WaitForSubmissions state={state} /> : <SubmitPhase state={state} send={send} />)}
         {round?.phase === 'vote' && <VotePhase state={state} send={send} isStoryteller={isStoryteller} />}
         {round?.phase === 'reveal' && <RevealPhase state={state} send={send} />}
 
@@ -101,7 +86,7 @@ function Clue({ round, state, compact = false }: { round: Round; state: GameStat
   const st = state.players.find((p) => p.playerId === round.storytellerId)
   const mine = round.storytellerId === state.you.playerId
   return (
-    <blockquote className={`clue${compact ? ' clue--compact' : ''}`} data-tutorial="clue">
+    <blockquote className={`clue${compact ? ' clue--compact' : ''}`}>
       <span className="clue__label">{mine ? 'Your clue' : st ? `${st.nickname}'s clue` : 'Clue'}</span>
       <div className="clue__text">{round.clue ?? '…'}</div>
     </blockquote>
@@ -115,7 +100,6 @@ function Hand({
   actionLabel,
   disabled,
   flyingId = null,
-  send,
 }: {
   state: GameState
   selected: string | null
@@ -123,17 +107,9 @@ function Hand({
   actionLabel?: string
   disabled?: boolean
   flyingId?: string | null
-  /** When given, the hand offers its custom slot: create your own sound while you can still play it. */
-  send?: (msg: ClientMessage) => void
 }) {
-  const [formOpen, setFormOpen] = useState(false)
-  const [draft, setDraft] = useState<SoundDraft>({ text: '', emotion: '' })
-  const round = state.round
-  const slot = state.you.customSlot
-  const canCreate = !!send && !!round && (round.phase === 'storyteller' || round.phase === 'submit') && !round.yourSubmission
-  const createState: CustomSlotState | null = canCreate && slot !== undefined && slot !== 'ready' ? slot : null
   return (
-    <section aria-label="Your hand" data-tutorial="hand">
+    <section aria-label="Your hand">
       <div className="hand hand--dealt">
         {state.you.hand.map((clip, i) => (
           <ClipCard
@@ -145,22 +121,9 @@ function Hand({
             onSelect={onSelect}
             actionLabel={actionLabel}
             disabled={disabled}
-            badge={clip.custom ? 'your sound' : undefined}
           />
         ))}
-        {createState && <CustomSlotCard state={createState} onOpen={() => setFormOpen(true)} />}
       </div>
-      {send && createState && createState !== 'generating' && formOpen && (
-        <CreateSoundForm
-          initial={draft}
-          onCancel={() => setFormOpen(false)}
-          onSubmit={(d) => {
-            setDraft(d)
-            setFormOpen(false)
-            send({ type: 'generate_sound', text: d.text, emotion: d.emotion })
-          }}
-        />
-      )}
     </section>
   )
 }
@@ -174,7 +137,6 @@ function StorytellerPhase({ state, send }: Props) {
       <p className="instruction">Listen to your clips, pick one and write a clue for it.</p>
       <Hand
         state={state}
-        send={send}
         selected={clipId}
         onSelect={(id) => {
           sfx('select')
@@ -207,7 +169,7 @@ function StorytellerPhase({ state, send }: Props) {
   )
 }
 
-function WaitForClue({ state, send }: Props) {
+function WaitForClue({ state }: { state: GameState }) {
   const storyteller = state.players.find((p) => p.isStoryteller)
   return (
     <>
@@ -215,7 +177,7 @@ function WaitForClue({ state, send }: Props) {
         Waiting for {storyteller ? <PlayerName player={storyteller} /> : 'the storyteller'} to write a clue
         <span className="dots">…</span>
       </p>
-      <Hand state={state} selected={null} send={send} />
+      <Hand state={state} selected={null} />
     </>
   )
 }
@@ -229,15 +191,13 @@ function SubmitPhase({ state, send }: Props) {
       <Clue round={round} state={state} />
       {submitted ? (
         <p className="waiting">
-          Clip on the table. Waiting for the others
-          <span className="dots">…</span>
+          Clip on the table. Waiting for the others<span className="dots">…</span>
         </p>
       ) : (
         <p className="instruction">Pick the clip from your hand that best matches the clue.</p>
       )}
       <Hand
         state={state}
-        send={send}
         selected={submitted}
         flyingId={flyId}
         onSelect={
@@ -285,7 +245,7 @@ function VotePhase({ state, send, isStoryteller }: Props & { isStoryteller: bool
       ) : (
         <p className="instruction">Which clip is the storyteller&apos;s? Not your own.</p>
       )}
-      <section aria-label="Table" data-tutorial="vote">
+      <section aria-label="Table">
         <div className="hand hand--table hand--flip">
           {round.table.map((clip, i) => {
             const own = clip.clipId === round.yourSubmission
@@ -329,16 +289,10 @@ function RevealPhase({ state, send }: Props) {
       <Clue round={round} state={state} compact />
       {reveal && (
         <>
-          <section aria-label="Results" data-tutorial="reveal">
+          <section aria-label="Results">
             <div className="hand hand--table hand--flip">
               {reveal.results.map((r, i) => {
-                const clip = clipFor(r.clipId) ?? {
-                  clipId: r.clipId,
-                  clipUrl: '',
-                  text: '',
-                  emotion: '',
-                  voiceId: '',
-                }
+                const clip = clipFor(r.clipId) ?? { clipId: r.clipId, clipUrl: '', text: '', emotion: '', voiceId: '' }
                 return (
                   <ClipCard key={r.clipId} clip={clip} index={i} correct={r.isStoryteller} voted={round.yourVote === r.clipId}>
                     <div className="reveal-info">
@@ -397,7 +351,7 @@ function RevealPhase({ state, send }: Props) {
   )
 }
 
-export function EndGame({ state, send, tour = null }: Props & { tour?: TourControls | null }) {
+export function EndGame({ state, send }: Props) {
   const you = state.you.playerId
   const won = state.winnerIds.includes(you)
   const winners = state.players.filter((p) => state.winnerIds.includes(p.playerId)).map((p) => p.nickname)
@@ -406,22 +360,18 @@ export function EndGame({ state, send, tour = null }: Props & { tour?: TourContr
   return (
     <main className="screen" style={{ justifyContent: 'center' }}>
       <h1 className="title">Game over</h1>
-      <TutorialCue cue={null} tour={tour} />
       <p className={`winner-line${winners.length ? (won ? ' winner-line--success' : ' winner-line--failure') : ''}`}>
-        {won ? (winners.length > 1 ? 'You share the win!' : 'You win!') : winners.length ? `${winners.join(' and ')} ${winners.length > 1 ? 'win' : 'wins'}!` : 'No winner.'}
+        {won
+          ? winners.length > 1
+            ? 'You share the win!'
+            : 'You win!'
+          : winners.length
+            ? `${winners.join(' and ')} ${winners.length > 1 ? 'win' : 'wins'}!`
+            : 'No winner.'}
       </p>
-      <div data-tutorial="scores">
-        <Podium players={state.players} youId={you} />
-      </div>
+      <Podium players={state.players} youId={you} />
       {others.length > 0 && (
-        <ul
-          className="points"
-          style={{
-            background: 'var(--color-surface)',
-            border: 'var(--line) solid var(--color-border)',
-            borderRadius: 'var(--radius)',
-          }}
-        >
+        <ul className="points" style={{ background: 'var(--color-surface)', border: 'var(--line) solid var(--color-border)', borderRadius: 'var(--radius)' }}>
           {others.map((p, i) => (
             <li key={p.playerId} className={p.playerId === you ? 'you' : undefined}>
               <span className="mono">{i + 4}</span>

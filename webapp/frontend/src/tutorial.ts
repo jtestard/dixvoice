@@ -208,7 +208,7 @@ function tourStepFor(section: TourSection, state: GameState | null, screen: Tuto
     case 'start':
       return step('START', 'Anyone can press Start once there are at least 4 players.')
     case 'header':
-      return step('GAME HEADER', 'The round number and phase, the How to play toggle for these tips, and the Scores button.')
+      return step('GAME HEADER', 'The round number and phase, the Help toggle for these tips, and the Scores button.')
     case 'role':
       return step('YOUR ROLE', 'This strip says who you are this round and what that means for you. It updates as the round moves on.')
     case 'hand':
@@ -267,30 +267,17 @@ export interface TutorialCue {
 }
 
 export function tutorialCue(state: GameState | null, screen: TutorialScreen): TutorialCue | null {
-  if (screen === 'home') {
-    return {
-      key: 'home',
-      label: 'HOW TO PLAY',
-      body: "Pick a nickname, then Quick start with AI companions, create a room, or join a friend's with their 4-letter code.",
-    }
-  }
-  if (!state) return null
+  // Home explains itself (table illustration + 4 steps); the end screen needs no cue.
+  if (screen === 'home' || screen === 'endGame' || !state) return null
 
   const room = state.room.code
   if (screen === 'lobby') {
     return {
       key: `${room}:lobby`,
       label: 'HOW TO PLAY',
-      body: `Share the room code. You need 4 to 8 players, and anyone can press Start.${
-        state.players.length < 8 ? ' Short on players? Add an AI companion.' : ''
+      body: `Share the room code. 4 to 8 players sit at the table; anyone can press Start.${
+        state.players.length < 4 ? ' Short on players? Add an AI companion.' : ''
       }`,
-    }
-  }
-  if (screen === 'endGame') {
-    return {
-      key: `${room}:endGame`,
-      label: 'HOW TO PLAY',
-      body: `First to ${TARGET_SCORE} points wins. The session is complete. Leave the room, or press Stop to close it for everyone.`,
     }
   }
 

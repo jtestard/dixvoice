@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { RoleBanner, TourStep, TutorialCue } from '../tutorial'
+import { useEffect, useRef, useState } from 'react'
+import type { RoleBanner, TourStep, TutorialCue as Cue } from '../tutorial'
 import { PlayerName } from './Common'
 
 export interface TourControls {
@@ -9,21 +9,18 @@ export interface TourControls {
 }
 
 /**
- * Wraps a screen with the tutorial slot: the tour explanation card while a section still needs explaining, then the
+ * The tutorial slot of a screen: the tour explanation card while a section still needs explaining, then the compact
  * per-moment cue card. The tour highlights its section through the `data-tutorial` anchor on the page.
  */
-export function TutorialLayout({ cue, tour, children }: { cue: TutorialCue | null; tour: TourControls | null; children: ReactNode }) {
-  return (
-    <div className="tutorial-layout">
-      {tour ? <TourAside key={tour.step.section} {...tour} /> : cue && <TutorialAside key={cue.key} cue={cue} />}
-      <div className="tutorial-layout__content">{children}</div>
-    </div>
-  )
+export function TutorialCue({ cue, tour = null }: { cue: Cue | null; tour?: TourControls | null }) {
+  if (tour) return <TourCard key={tour.step.section} {...tour} />
+  if (!cue) return null
+  return <TutorialCueInner key={cue.key} cue={cue} />
 }
 
 const HIGHLIGHT_CLASS = 'tutorial-target'
 
-function TourAside({ step, onNext, onSkip }: TourControls) {
+function TourCard({ step, onNext, onSkip }: TourControls) {
   const card = useRef<HTMLElement>(null)
 
   useEffect(() => {
@@ -43,7 +40,7 @@ function TourAside({ step, onNext, onSkip }: TourControls) {
   }, [step.section])
 
   return (
-    <aside className="tutorial-layout__aside" aria-label="Tour step">
+    <aside aria-label="Tour step">
       <section ref={card} tabIndex={-1} className="tutorial-card tutorial-card--tour" aria-labelledby="tour-label" data-testid="tour-step">
         <span id="tour-label" className="tutorial-card__label">
           TOUR · {step.label}
@@ -62,18 +59,15 @@ function TourAside({ step, onNext, onSkip }: TourControls) {
   )
 }
 
-function TutorialAside({ cue }: { cue: TutorialCue }) {
+function TutorialCueInner({ cue }: { cue: Cue }) {
   const [dismissed, setDismissed] = useState(false)
   if (dismissed) return null
   return (
-    <aside className="tutorial-layout__aside" aria-label="How to play cue">
-      <div className="tutorial-card">
-        <span className="tutorial-card__label">{cue.label}</span>
-        <p>{cue.body}</p>
-        <button type="button" className="btn btn--secondary tutorial-card__dismiss" onClick={() => setDismissed(true)}>
-          Got it
-        </button>
-      </div>
+    <aside className="tutorial-card" aria-label="How to play cue">
+      <p>{cue.body}</p>
+      <button type="button" className="btn tutorial-card__dismiss" onClick={() => setDismissed(true)} aria-label="Got it">
+        ✕
+      </button>
     </aside>
   )
 }

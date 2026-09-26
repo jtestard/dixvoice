@@ -28,4 +28,7 @@ const (
 	CodePlayerNotFound       = "player_not_found"
 	CodeNotACompanion        = "not_a_companion"
 	CodeCompanionUnavailable = "companion_unavailable"
+	CodeInvalidSound         = "invalid_sound"
+	CodeCustomSlotBusy       = "custom_slot_busy"
+	CodeGenerationFailed     = "generation_failed"
 )

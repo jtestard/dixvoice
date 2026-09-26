@@ -11,12 +11,28 @@ import (
 )
 
 const (
-	MinPlayers   = 4
-	MaxPlayers   = 8
-	HandSize     = 6
-	TargetScore  = 10
-	MaxClueLen   = 200
-	MaxNicknames = 24
+	MinPlayers = 4
+	MaxPlayers = 8
+	// HandSize is the number of slots in a hand: DealtSize clips dealt from
+	// the pool plus one custom slot the player may fill with a sound they
+	// generate (README > Custom sound).
+	HandSize        = 6
+	DealtSize       = HandSize - 1
+	TargetScore     = 10
+	MaxClueLen      = 200
+	MaxNicknames    = 24
+	MaxSoundText    = 100 // AudioRequest.text (spec/audio-request.schema.json)
+	MaxSoundEmotion = 30  // AudioRequest.emotion
+)
+
+// CustomState is the state of a player's custom slot.
+type CustomState string
+
+const (
+	CustomEmpty      CustomState = "empty"
+	CustomGenerating CustomState = "generating"
+	CustomReady      CustomState = "ready"
+	CustomFailed     CustomState = "failed"
 )
 
 type Status string
@@ -44,6 +60,9 @@ type Clip struct {
 	Text    string `json:"text"`
 	Emotion string `json:"emotion"`
 	VoiceID string `json:"voiceId"`
+	// Custom marks the clip in its owner's custom slot. It is only ever set in
+	// the owner's own hand, never on the table.
+	Custom bool `json:"custom,omitempty"`
 }
 
 type Player struct {
@@ -58,6 +77,11 @@ type Player struct {
 	Submission string
 	// Vote is the clip the player voted for this round ("" if none).
 	Vote string
+	// Custom is the state of the player's custom slot this round.
+	Custom CustomState
+	// customTicket numbers the player's generation requests, so that a result
+	// arriving after the round ended, or after a newer request, is dropped.
+	customTicket int
 }
 
 type RevealResult struct {
@@ -274,7 +298,7 @@ func (r *Room) fresh(pool []Clip) []Clip {
 }
 
 func (r *Room) canDeal(pool []Clip) bool {
-	return len(r.fresh(pool)) >= HandSize*len(r.Players)
+	return len(r.fresh(pool)) >= DealtSize*len(r.Players)
 }
 
 // deal starts a new round: fresh hands for everyone, next storyteller.
@@ -282,14 +306,15 @@ func (r *Room) deal(pool []Clip) {
 	fresh := r.fresh(pool)
 	r.rng.Shuffle(len(fresh), func(i, j int) { fresh[i], fresh[j] = fresh[j], fresh[i] })
 	for _, p := range r.Players {
-		p.Hand = make([]Clip, HandSize)
-		copy(p.Hand, fresh[:HandSize])
-		fresh = fresh[HandSize:]
+		p.Hand = make([]Clip, DealtSize)
+		copy(p.Hand, fresh[:DealtSize])
+		fresh = fresh[DealtSize:]
 		for _, c := range p.Hand {
 			r.Used[c.ID] = true
 		}
 		p.Submission = ""
 		p.Vote = ""
+		p.resetCustom()
 	}
 	r.roundsInGame++
 	r.storytellerIdx %= len(r.Players)
@@ -300,6 +325,75 @@ func (r *Room) deal(pool []Clip) {
 		Table:         []Clip{},
 	}
 	r.storytellerIdx++
+}
+
+// resetCustom empties the custom slot and invalidates any generation still
+// running for it.
+func (p *Player) resetCustom() {
+	p.Custom = CustomEmpty
+	p.customTicket++
+}
+
+// ValidateSound checks the text and emotion of a sound to generate, with the
+// limits of spec/audio-request.schema.json.
+func ValidateSound(text, emotion string) (string, string, error) {
+	text, emotion = strings.TrimSpace(text), strings.TrimSpace(emotion)
+	if text == "" || utf8.RuneCountInString(text) > MaxSoundText {
+		return "", "", newError(CodeInvalidSound, fmt.Sprintf("the text must be 1 to %d characters", MaxSoundText))
+	}
+	if emotion == "" || utf8.RuneCountInString(emotion) > MaxSoundEmotion {
+		return "", "", newError(CodeInvalidSound, fmt.Sprintf("the emotion must be 1 to %d characters", MaxSoundEmotion))
+	}
+	return text, emotion, nil
+}
+
+// BeginCustom marks the player's custom slot as generating and returns a
+// ticket for CompleteCustom. A player can generate a sound during the
+// storyteller and submit phases, until they have put a clip on the table, when
+// their slot is empty (or failed: that is a retry).
+func (r *Room) BeginCustom(playerID string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Status != StatusPlaying || r.Round == nil || (r.Round.Phase != PhaseStoryteller && r.Round.Phase != PhaseSubmit) {
+		return 0, newError(CodeInvalidPhase, "sounds can only be created before the clips are on the table")
+	}
+	p := r.player(playerID)
+	if p == nil {
+		return 0, newError(CodePlayerNotFound, "unknown player")
+	}
+	if p.Submission != "" {
+		return 0, newError(CodeAlreadySubmitted, "you already put a clip on the table")
+	}
+	if p.Custom == CustomGenerating || p.Custom == CustomReady {
+		return 0, newError(CodeCustomSlotBusy, "your custom slot is already used this round")
+	}
+	p.customTicket++
+	p.Custom = CustomGenerating
+	return p.customTicket, nil
+}
+
+// CompleteCustom stores the result of the generation started with
+// BeginCustom: the clip goes into the player's hand as their custom clip and
+// into the room's used sounds, or, when clip is nil, the slot is marked
+// failed. It does nothing and reports false when the ticket is stale (the
+// round is over, or the game or the player is gone).
+func (r *Room) CompleteCustom(playerID string, ticket int, clip *Clip) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p := r.player(playerID)
+	if p == nil || r.Status != StatusPlaying || p.customTicket != ticket || p.Custom != CustomGenerating {
+		return false
+	}
+	if clip == nil {
+		p.Custom = CustomFailed
+		return true
+	}
+	c := *clip
+	c.Custom = true
+	p.Hand = append(p.Hand, c)
+	r.Used[c.ID] = true
+	p.Custom = CustomReady
+	return true
 }
 
 func (r *Room) requirePhase(ph Phase) error {
@@ -373,6 +467,7 @@ func (r *Room) SubmitClip(playerID, clipID string) error {
 	for _, q := range r.Players {
 		for _, c := range q.Hand {
 			if c.ID == q.Submission {
+				c.Custom = false // the table never tells a custom clip apart
 				table = append(table, c)
 			}
 		}
@@ -528,6 +623,7 @@ func (r *Room) finish() {
 			r.Winners = append(r.Winners, p.ID)
 		}
 		p.Hand = nil
+		p.resetCustom()
 	}
 	r.Status = StatusFinished
 }

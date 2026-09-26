@@ -1,3 +1,4 @@
 secret
 .audio-secret.env
 .companions-secret.env
+.DS_Store

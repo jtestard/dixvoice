@@ -1,7 +1,7 @@
 let element: HTMLAudioElement | null = null
 let context: AudioContext | null = null
 let analyser: AnalyserNode | null = null
-let buffer: Uint8Array<ArrayBuffer> | null = null
+let buffer: Uint8Array | null = null
 let corsOk = true
 let unlocked = false
 let currentKey: string | null = null

@@ -7,7 +7,13 @@ export interface Clip {
   text: string
   emotion: string
   voiceId: string
+  /** Set on the clip in your own custom slot, only in your own hand. */
+  custom?: boolean
 }
+
+/** State of your custom slot: the 6th slot of the hand, filled with a sound you generate. */
+export type CustomSlotState = 'empty' | 'generating' | 'ready' | 'failed'
+
 
 export interface Player {
   playerId: string
@@ -46,7 +52,7 @@ export interface Round {
 export interface GameState {
   type: 'state'
   room: { code: string; status: RoomStatus; targetScore: number }
-  you: { playerId: string; hand: Clip[] }
+  you: { playerId: string; hand: Clip[]; customSlot?: CustomSlotState }
   players: Player[]
   round: Round | null
   winnerIds: string[]
@@ -75,6 +81,7 @@ export type ClientMessage =
   | { type: 'submit_clue'; clipId: string; clue: string }
   | { type: 'submit_clip'; clipId: string }
   | { type: 'vote'; clipId: string }
+  | { type: 'generate_sound'; text: string; emotion: string }
 
 export interface JoinResponse {
   roomCode: string

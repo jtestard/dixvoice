@@ -11,9 +11,8 @@ import { PLAYERS, REVEAL_ROUND, TABLE, finishedState, lobbyState, playingState }
 describe('tutorialCue', () => {
   it('chooses every screen and role-specific moment', () => {
     const cases: { screen: TutorialScreen; state: GameState | null; label: string; body: string }[] = [
-      { screen: 'home', state: null, label: 'HOW TO PLAY', body: "Pick a nickname, then Quick start with AI companions, create a room, or join a friend's with their 4-letter code." },
-      { screen: 'lobby', state: lobbyState(), label: 'HOW TO PLAY', body: 'Share the room code. You need 4 to 8 players, and anyone can press Start. Short on players? Add an AI companion.' },
-      { screen: 'lobby', state: lobbyState(PLAYERS.concat(PLAYERS.map((p) => ({ ...p, playerId: `${p.playerId}b` })))), label: 'HOW TO PLAY', body: 'Share the room code. You need 4 to 8 players, and anyone can press Start.' },
+      { screen: 'lobby', state: lobbyState(), label: 'HOW TO PLAY', body: 'Share the room code. 4 to 8 players sit at the table; anyone can press Start. Short on players? Add an AI companion.' },
+      { screen: 'lobby', state: lobbyState(PLAYERS.concat(PLAYERS.map((p) => ({ ...p, playerId: `${p.playerId}b` })))), label: 'HOW TO PLAY', body: 'Share the room code. 4 to 8 players sit at the table; anyone can press Start.' },
       { screen: 'game', state: playingState('p1', { phase: 'storyteller' }), label: 'STEP 1/4', body: 'Tap your clips to listen, pick one, and write a clue for it. Aim for a clue some players get, but not all.' },
       { screen: 'game', state: playingState('p4', { phase: 'storyteller' }), label: 'STEP 1/4', body: 'Ana is choosing a clip and writing a clue. Listen to your hand in the meantime.' },
       { screen: 'game', state: playingState('p4', { phase: 'submit', clue: 'a door in the rain' }), label: 'STEP 2/4', body: "Pick the clip from your hand that best fits Ana's clue \u201ca door in the rain\u201d. It will be shuffled in with Ana's." },
@@ -24,12 +23,13 @@ describe('tutorialCue', () => {
       { screen: 'game', state: playingState('p4', { phase: 'vote', yourVote: 't1' }), label: 'STEP 3/4', body: 'Waiting for 3 players to vote.' },
       { screen: 'game', state: playingState('p4', REVEAL_ROUND), label: 'STEP 4/4', body: 'You score +4 this round. Press Next round to keep going: first to 10 wins.' },
       { screen: 'game', state: playingState('p1', REVEAL_ROUND), label: 'STEP 4/4', body: 'You score +3 this round. Press Next round to keep going: first to 10 wins.' },
-      { screen: 'endGame', state: finishedState(), label: 'HOW TO PLAY', body: 'First to 10 points wins. The session is complete. Leave the room, or press Stop to close it for everyone.' },
     ]
     for (const { screen: currentScreen, state, label, body } of cases) {
       expect(tutorialCue(state, currentScreen)).toEqual(expect.objectContaining({ label, body }))
     }
     expect(tutorialCue(null, 'game')).toBeNull()
+    expect(tutorialCue(null, 'home')).toBeNull()
+    expect(tutorialCue(finishedState(), 'endGame')).toBeNull()
   })
 
   it('changes the moment key for a new round and for submission or vote', () => {
@@ -248,7 +248,7 @@ describe('tutorial interactions', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(step()).toHaveTextContent('TOUR · ON THE TABLE')
     await userEvent.click(screen.getByRole('button', { name: 'Next' }))
-    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('STEP 2/4')
+    expect(screen.getByLabelText('How to play cue')).toHaveTextContent("Pick the clip from your hand that best fits Ana's clue")
   })
 
   it('skips the whole tour with the button or Escape, and Replay tour brings it back', async () => {
@@ -258,7 +258,7 @@ describe('tutorial interactions', () => {
     expect(screen.getByTestId('tour-step')).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByTestId('tour-step')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('STEP 1/4')
+    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('Tap your clips to listen')
     expect(new Set(JSON.parse(localStorage.getItem(TOUR_KEY)!))).toEqual(new Set(TOUR_SECTIONS))
 
     await userEvent.click(screen.getByRole('button', { name: 'Replay tour' }))
@@ -273,7 +273,7 @@ describe('tutorial interactions', () => {
     receive(playingState('p4', { phase: 'storyteller' }))
     const strip = screen.getByTestId('role-strip')
     expect(strip).toHaveTextContent("You're a PLAYER. Ana is the storyteller. Match their clue with one of your clips, then find their clip among everyone's.")
-    await userEvent.click(screen.getByRole('button', { name: 'How to play: On' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Help: on' }))
     expect(screen.getByTestId('role-strip')).toHaveTextContent("You're a PLAYER. Ana is the storyteller.")
     expect(screen.getByTestId('role-strip')).not.toHaveTextContent('Match their clue')
     expect(screen.queryByTestId('tour-step')).not.toBeInTheDocument()
@@ -292,15 +292,16 @@ describe('tutorial interactions', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(screen.getByTestId('tour-step')).toHaveTextContent('TOUR · PLAY WITH FRIENDS')
     await userEvent.click(screen.getByRole('button', { name: 'Next' }))
-    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('Pick a nickname')
+    expect(screen.queryByTestId('tour-step')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('How to play cue')).not.toBeInTheDocument()
   })
 
   it('starts on, persists the toggle, and hides cards while off', async () => {
     const { unmount } = render(<App />)
     receive(playingState('p1', { phase: 'storyteller' }))
-    const toggle = screen.getByRole('button', { name: 'How to play: On' })
+    const toggle = screen.getByRole('button', { name: 'Help: on' })
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('STEP 1/4')
+    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('Tap your clips to listen')
     await userEvent.click(toggle)
     expect(localStorage.getItem('dixvoice.tutorial')).toBe('off')
     expect(screen.queryByLabelText('How to play cue')).not.toBeInTheDocument()
@@ -308,11 +309,11 @@ describe('tutorial interactions', () => {
 
     render(<App />)
     receive(playingState('p1', { phase: 'storyteller' }))
-    expect(screen.getByRole('button', { name: 'How to play: Off' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Help: off' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.queryByLabelText('How to play cue')).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'How to play: Off' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Help: off' }))
     expect(localStorage.getItem('dixvoice.tutorial')).toBe('on')
-    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('STEP 1/4')
+    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('Tap your clips to listen')
   })
 
   it('keeps the storyteller draft when toggling or dismissing guidance', async () => {
@@ -320,11 +321,11 @@ describe('tutorial interactions', () => {
     receive(playingState('p1', { phase: 'storyteller' }))
     await userEvent.click(within(screen.getByTestId('clip-h1')).getByRole('button', { name: 'Pick' }))
     await userEvent.type(screen.getByLabelText('Your clue'), 'A quiet midnight train')
-    await userEvent.click(screen.getByRole('button', { name: 'How to play: On' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Help: on' }))
     expect(screen.getByLabelText('Your clue')).toHaveValue('A quiet midnight train')
     expect(screen.getByTestId('clip-h1')).toHaveClass('clip-card--selected')
     expect(screen.getByRole('button', { name: 'Send clue' })).toBeEnabled()
-    await userEvent.click(screen.getByRole('button', { name: 'How to play: Off' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Help: off' }))
     await userEvent.click(screen.getByRole('button', { name: 'Got it' }))
     expect(screen.getByLabelText('Your clue')).toHaveValue('A quiet midnight train')
     expect(screen.getByRole('button', { name: 'Send clue' })).toBeEnabled()
@@ -341,7 +342,7 @@ describe('tutorial interactions', () => {
     expect(screen.getByLabelText('How to play cue')).toHaveTextContent('Waiting for 3 players to pick a clip.')
     await userEvent.click(screen.getByRole('button', { name: 'Got it' }))
     receive(playingState('p4', { phase: 'vote', table: [], yourSubmission: 'h2' }))
-    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('STEP 3/4')
+    expect(screen.getByLabelText('How to play cue')).toHaveTextContent("vote for the one you think is Ana's")
     await userEvent.click(screen.getByRole('button', { name: 'Got it' }))
     receive(playingState('p4', { phase: 'vote', table: [], yourSubmission: 'h2', yourVote: 't1' }))
     expect(screen.getByLabelText('How to play cue')).toHaveTextContent('Waiting for 3 players to vote.')
@@ -351,15 +352,15 @@ describe('tutorial interactions', () => {
     render(<App />)
     const reveal = playingState('p4', REVEAL_ROUND)
     receive({ ...reveal, players: reveal.players.map((p) => p.playerId === 'p3' ? { ...p, score: 11 } : p) })
-    expect(screen.getByRole('status', { name: 'Your round result' })).toHaveTextContent('Round win · +4')
-    expect(screen.getByRole('button', { name: 'Next round' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Round result' })).toHaveTextContent('You score 4')
+    expect(screen.getByRole('button', { name: 'See final scores' })).toBeInTheDocument()
     expect(screen.queryByText('Game over')).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Next round' }))
+    await userEvent.click(screen.getByRole('button', { name: 'See final scores' }))
     receive(finishedState())
     expect(screen.getByText('Game over')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New game' })).not.toBeInTheDocument()
-    expect(screen.getByLabelText('How to play cue')).toHaveTextContent('The session is complete.')
+    expect(screen.queryByLabelText('How to play cue')).not.toBeInTheDocument()
   })
 
   it('keeps working if tutorial storage is unavailable', async () => {
@@ -378,7 +379,7 @@ describe('tutorial interactions', () => {
     expect(screen.getByTestId('tour-step')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Skip tour' }))
     expect(screen.getByLabelText('How to play cue')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'How to play: On' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Help: on' }))
     expect(screen.queryByLabelText('How to play cue')).not.toBeInTheDocument()
   })
 })
