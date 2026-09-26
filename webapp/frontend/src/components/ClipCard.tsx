@@ -1,4 +1,5 @@
 import { playClip } from '../audio'
+import { hash } from '../hash'
 import { usePlayingKey } from '../usePlayingKey'
 import type { Clip } from '../types'
 
@@ -16,15 +17,6 @@ interface Props {
 
 const BARS = 16
 const ENVELOPE = [0.35, 0.6, 0.85]
-
-function hash(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
-}
 
 /** Stable pseudo-random bar heights (in %) for a clip id, faded in and out at both ends. */
 function waveform(clipId: string): number[] {

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { MAX_PLAYERS } from '../table'
 import type { Player } from '../types'
 
 export function BotBadge() {
@@ -19,7 +20,7 @@ export function PlayerName({ player }: { player: Player | undefined }) {
   )
 }
 
-export const MAX_PLAYERS = 8
+export { MAX_PLAYERS }
 
 export function AddCompanionButton({ players, onAdd, disabled = false }: { players: Player[]; onAdd: () => void; disabled?: boolean }) {
   if (players.length >= MAX_PLAYERS) return null

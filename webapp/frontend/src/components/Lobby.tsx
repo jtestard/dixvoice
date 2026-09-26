@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { ClientMessage, GameState } from '../types'
 import { QUICK_START_COMPANIONS, isQuickStartActive, type QuickStart } from '../useQuickStart'
-import { AddCompanionButton, MAX_PLAYERS, NoticeLabel, PlayerList, StopButton } from './Common'
+import { MAX_PLAYERS, MIN_PLAYERS, tableView } from '../table'
+import { AddCompanionButton, NoticeLabel, StopButton } from './Common'
+import { GameTable } from './Table'
 
 interface Props {
   state: GameState
@@ -21,8 +23,7 @@ function quickStartText(quick: QuickStart): string {
   }
 }
 
-export const MIN_PLAYERS = 4
-export { MAX_PLAYERS }
+export { MAX_PLAYERS, MIN_PLAYERS }
 
 export function Lobby({ state, send, quick = null, onDismissQuick }: Props) {
   const [copied, setCopied] = useState(false)
@@ -41,26 +42,36 @@ export function Lobby({ state, send, quick = null, onDismissQuick }: Props) {
   }
 
   return (
-    <main className="screen">
-      <h1 className="title">Lobby</h1>
-      <section className="room-code" aria-label="Room code">
-        <span className="label">Room code</span>
-        <div className="room-code__value" data-testid="room-code">
-          {state.room.code.split('').map((ch, i) => (
-            <span key={i} className="room-code__tile">
-              {ch}
-            </span>
-          ))}
-        </div>
-        <button type="button" className="btn btn--secondary" onClick={copy}>
-          {copied ? 'Copied!' : 'Copy code'}
-        </button>
-      </section>
+    <main className="screen screen--lobby">
+      <header className="lobby-header">
+        <h1 className="title">Lobby</h1>
+        <section className="room-code" aria-label="Room code">
+          <span className="label">Room code</span>
+          <div className="room-code__value" data-testid="room-code">
+            {state.room.code.split('').map((ch, i) => (
+              <span key={i} className="room-code__tile">
+                {ch}
+              </span>
+            ))}
+          </div>
+          <button type="button" className="btn btn--secondary" onClick={copy}>
+            {copied ? 'Copied!' : 'Copy code'}
+          </button>
+        </section>
+      </header>
 
-      <h2>
-        Players ({n}/{MAX_PLAYERS})
-      </h2>
-      <PlayerList players={state.players} youId={state.you.playerId} onRemoveCompanion={(playerId) => send({ type: 'remove_companion', playerId })} />
+      <GameTable
+        view={tableView(state)}
+        onRemoveCompanion={(playerId) => send({ type: 'remove_companion', playerId })}
+        lobby={
+          <>
+            <h2 className="board__count">
+              Players ({n}/{MAX_PLAYERS})
+            </h2>
+            <p className="board__hint">{n < MIN_PLAYERS ? `${MIN_PLAYERS - n} more to start` : 'Ready to start'}</p>
+          </>
+        }
+      />
       {quick && quickActive && (
         <p className="quick-progress" role="status" aria-live="polite" data-testid="quick-progress">
           <span className="spinner" aria-hidden="true" />
@@ -78,9 +89,9 @@ export function Lobby({ state, send, quick = null, onDismissQuick }: Props) {
           )}
         </div>
       )}
-      {!quickActive && n < MIN_PLAYERS && <p className="muted">Waiting for at least {MIN_PLAYERS} players to start. Add AI companions to fill the seats.</p>}
+      {!quickActive && n < MIN_PLAYERS && <p className="muted lobby-hint">Waiting for at least {MIN_PLAYERS} players to start. Add AI companions to fill the seats.</p>}
 
-      <div className="actions">
+      <div className="actions action-bar">
         <AddCompanionButton players={state.players} disabled={quickActive} onAdd={() => send({ type: 'add_companion' })} />
         <button type="button" className="btn btn--primary btn--block" disabled={!canStart} onClick={() => send({ type: 'start_game' })}>
           Start game

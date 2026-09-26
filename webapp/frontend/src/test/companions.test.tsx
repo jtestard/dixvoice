@@ -67,7 +67,7 @@ describe('Bot badge during the game', () => {
 
   it('is shown in the storyteller line and waiting indicators', () => {
     render(<Game state={withCompanionStoryteller({ phase: 'storyteller' })} send={vi.fn()} />)
-    // storyteller line + waiting message
+    // storyteller seat + waiting message
     expect(screen.getAllByTestId('bot-badge')).toHaveLength(2)
     expect(screen.getByText(/Waiting for/).closest('p')).toHaveTextContent('Ana')
   })
@@ -93,8 +93,9 @@ describe('Bot badge during the game', () => {
     render(<Game state={withCompanionStoryteller(REVEAL_ROUND)} send={vi.fn()} />)
     const st = screen.getByTestId('clip-t1')
     expect(within(st).getByTestId('bot-badge')).toBeInTheDocument()
-    // storyteller line, owner of t1, and the points list
-    expect(screen.getAllByTestId('bot-badge').length).toBeGreaterThanOrEqual(3)
+    // storyteller seat (with its points) and owner of t1
+    expect(within(screen.getByTestId('seat-p1')).getByTestId('bot-badge')).toBeInTheDocument()
+    expect(screen.getAllByTestId('bot-badge').length).toBeGreaterThanOrEqual(2)
   })
 })
 

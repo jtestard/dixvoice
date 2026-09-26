@@ -99,13 +99,40 @@ Screens and features:
   `add_companion` 3 times, then send `start_game` automatically as soon as the room has 4 players. Show progress
   ("Adding companions… 2/3") and, if a companion cannot be added (`companion_unavailable`), stop and leave the player
   in the lobby with the error so they can retry or invite friends.
-- **Lobby**: show the room code (easy to read aloud and copy), the connected players, a Start button (enabled with 4+
-  players), a Stop button, a Leave button, an "Add AI companion" button (hidden when the room is full) and a remove
-  button next to each companion. Companions show a bot badge wherever player names appear.
-- **Hand**: the player's 6 clips as cards; tapping a card plays its sound.
-- **Round screens**, one per phase (see Game rules): the storyteller picks a clip and writes a clue; the others pick a
-  clip; everyone votes on the shuffled clips; the reveal shows owners, votes and points won. Show who has already
-  submitted or voted so players know who they are waiting for.
+- **Lobby**: show the room code (easy to read aloud and copy), the table with a seat per player and empty seats
+  filling up as players join (4 to 8), and below it a Start button (enabled with 4+ players), a Stop button, a Leave
+  button, an "Add AI companion" button (hidden when the room is full) and a remove button on each companion's seat.
+  Companions show a bot badge wherever player icons or names appear.
+- **The table** is the centrepiece and always visible during a game, in every phase: it shows what would physically be
+  on a real table at that moment. It is a pure function of the state the backend sends (`src/table.ts`, unit tested);
+  no backend or protocol change.
+  - **Seats**: one per player around a rounded table, in join order. Each seat shows the player's icon, nickname, score
+    and status (offline, done or waiting). Your seat is always at the bottom centre, closest to you, and labelled
+    "You".
+  - **Player icons**: a deterministic avatar per player, derived from the player id: a shape and a colour from the Tape
+    Deck palette plus the nickname's initial, drawn as inline SVG. AI companions get a small robot badge.
+  - **Storyteller**: their seat is highlighted, labelled "STORYTELLER" and carries the storyteller token (the cassette
+    from the logo). When you are the storyteller, your own bottom seat carries it and the centre says "You're telling
+    the story".
+  - **Storyteller phase**: the centre holds a placeholder where the clue will be ("<name> is choosing a clip…"); a
+    face-down card appears in front of the storyteller once they have picked.
+  - **Submit phase**: the clue sits in the centre. Each player who has submitted gets a face-down card in front of their
+    seat (the storyteller's is there from the start); seats still choosing show a waiting marker.
+  - **Vote phase**: the submitted cards are in the centre, face up in the (shuffled) order the backend sends: tap to
+    listen, then vote. Each seat shows a vote token once that player has voted, without showing on what.
+  - **Reveal**: each centre card shows its owner's icon, the voters' icons stacked on it, and the storyteller's card is
+    marked. Each seat shows the points won and its updated score.
+- **Hand**: the player's 6 clips as cards below the table, in front of their seat ("Your cards in hand"), distinct from
+  the cards on the table; tapping a card plays its sound. While the table holds the vote cards, the hand shrinks to a
+  small stack.
+- **Round actions** (see Game rules): the storyteller picks a clip and writes a clue; the others pick a clip; everyone
+  votes on the table cards; the reveal ends with "Next round". A status line under the table says what is happening
+  and the action bar holds the phase's buttons.
+- **Fits the screen**: on phones (360x640 up to 412x915) the game and lobby fit the viewport without page scrolling:
+  header, table (a compact oval with small seats, up to 8 players), hand (3x2 grid) and action bar. Desktop gets a
+  bigger table. Card and token animations honour `prefers-reduced-motion`.
+- The tutorial tour can point at the table (`data-tutorial="table"`), the seats (`data-tutorial="seats"`), the
+  storyteller token (`data-tutorial="storyteller"`) and the hand (`data-tutorial="hand"`).
 - **Scoreboard** always reachable during the game, and an end-of-game screen with the final scores, "Leave" and
   "Stop".
 - A **Stop** button is available during the game too; it asks for confirmation in the page (no browser dialog).
