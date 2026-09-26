@@ -237,7 +237,7 @@ describe('tutorial interactions', () => {
     expect(screen.getByTestId('role-strip')).toHaveClass('tutorial-target')
 
     await userEvent.click(screen.getByRole('button', { name: 'Next' }))
-    expect(step()).toHaveTextContent('Your 6 clips are your cards.')
+    expect(step()).toHaveTextContent('Your clips are your cards')
     await userEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(screen.queryByTestId('tour-step')).not.toBeInTheDocument()
     expect(screen.getByLabelText('How to play cue')).toHaveTextContent('Ana is choosing a clip')
