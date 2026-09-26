@@ -4,12 +4,14 @@ import type { GameState, Player } from '../types'
 import type { Notice } from '../useGame'
 import { NoticeLabel } from './Common'
 import { Table } from './Table'
+import { TutorialCue, type TourControls } from './TutorialCard'
 
 interface Props {
   notice: Notice | null
   onDismissNotice: () => void
   onJoined: (token: string) => void
   onQuickStart: (token: string) => void
+  tour?: TourControls | null
 }
 
 const NICK_KEY = 'dixvoice.nickname'
@@ -39,12 +41,21 @@ function demoState(nickname: string): GameState {
     room: { code: 'DEMO', status: 'playing', targetScore: 10 },
     you: { playerId: 'h1', hand: [] },
     players,
-    round: { number: 1, phase: 'submit', storytellerId: 'h3', clue: 'a door in the rain', yourSubmission: null, yourVote: null, table: [], reveal: null },
+    round: {
+      number: 1,
+      phase: 'submit',
+      storytellerId: 'h3',
+      clue: 'a door in the rain',
+      yourSubmission: null,
+      yourVote: null,
+      table: [],
+      reveal: null,
+    },
     winnerIds: [],
   }
 }
 
-export function Home({ notice, onDismissNotice, onJoined, onQuickStart }: Props) {
+export function Home({ notice, onDismissNotice, onJoined, onQuickStart, tour = null }: Props) {
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICK_KEY) ?? '')
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -101,48 +112,52 @@ export function Home({ notice, onDismissNotice, onJoined, onQuickStart }: Props)
           </div>
         )}
 
-        <label className="field">
+        <label className="field" data-tutorial="nickname">
           <span>Nickname</span>
           <input value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={20} autoComplete="nickname" placeholder="Your name" />
         </label>
 
-        <button type="button" className="btn btn--primary btn--block btn--quick" disabled={busy || !nick} onClick={() => run(() => createRoom(nick), onQuickStart)}>
-          Quick start
-        </button>
-        <p className="hint">Sit down with 3 AI companions.</p>
+        <div className="home-quick" data-tutorial="quickstart">
+          <button type="button" className="btn btn--primary btn--block btn--quick" disabled={busy || !nick} onClick={() => run(() => createRoom(nick), onQuickStart)}>
+            Quick start
+          </button>
+          <p className="hint">Sit down with 3 AI companions.</p>
+        </div>
 
         <div className="divider">or with friends</div>
 
-        <button type="button" className="btn btn--secondary btn--block" disabled={busy} onClick={() => run(() => createRoom(nick))}>
-          Create a room
-        </button>
-
-        <form
-          className="join-row"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!code.trim()) {
-              setError('Please enter a room code.')
-              return
-            }
-            run(() => joinRoom(code.trim().toUpperCase(), nick))
-          }}
-        >
-          <input
-            className="input input--code"
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            maxLength={8}
-            autoCapitalize="characters"
-            autoCorrect="off"
-            spellCheck={false}
-            placeholder="ROOM CODE"
-            aria-label="Room code"
-          />
-          <button type="submit" className="btn btn--secondary" disabled={busy}>
-            Join
+        <div className="home-rooms" data-tutorial="rooms">
+          <button type="button" className="btn btn--secondary btn--block" disabled={busy} onClick={() => run(() => createRoom(nick))}>
+            Create a room
           </button>
-        </form>
+
+          <form
+            className="join-row"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!code.trim()) {
+                setError('Please enter a room code.')
+                return
+              }
+              run(() => joinRoom(code.trim().toUpperCase(), nick))
+            }}
+          >
+            <input
+              className="input input--code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              maxLength={8}
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="ROOM CODE"
+              aria-label="Room code"
+            />
+            <button type="submit" className="btn btn--secondary" disabled={busy}>
+              Join
+            </button>
+          </form>
+        </div>
 
         {error && (
           <div className="notice notice--error" role="alert">
@@ -150,6 +165,9 @@ export function Home({ notice, onDismissNotice, onJoined, onQuickStart }: Props)
             <span>{error}</span>
           </div>
         )}
+        <div className="home-tour">
+          <TutorialCue cue={null} tour={tour} />
+        </div>
       </div>
     </main>
   )

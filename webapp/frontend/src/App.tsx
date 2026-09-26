@@ -3,12 +3,14 @@ import { EndGame, Game } from './components/Game'
 import { Home } from './components/Home'
 import { Lobby } from './components/Lobby'
 import { NoticeLabel } from './components/Common'
+import type { TourControls } from './components/TutorialCard'
 import { sfx } from './sfx'
 import type { ClientMessage } from './types'
-import { tutorialCue, type TutorialScreen } from './tutorial'
+import { tourStep, tutorialCue, type TutorialScreen } from './tutorial'
 import { useGame } from './useGame'
 import { useQuickStart } from './useQuickStart'
 import { useSfxCues } from './useSfxCues'
+import { useTour } from './useTour'
 
 const TUTORIAL_KEY = 'dixvoice.tutorial'
 
@@ -22,6 +24,9 @@ export default function App() {
       return true
     }
   })
+
+  const { explained, markExplained, skipTour, replayTour } = useTour()
+  const [showScores, setShowScores] = useState(false)
 
   useSfxCues(state, notice)
 
@@ -44,7 +49,13 @@ export default function App() {
       return
     }
   }
-  const { quick, begin, dismiss } = useQuickStart({ token, state, conn, notice, send })
+  const { quick, begin, dismiss } = useQuickStart({
+    token,
+    state,
+    conn,
+    notice,
+    send,
+  })
 
   const onJoined = useCallback(
     (t: string) => {
@@ -72,6 +83,8 @@ export default function App() {
 
   const screen: TutorialScreen = !token ? 'home' : state?.room.status === 'lobby' ? 'lobby' : state?.room.status === 'finished' ? 'endGame' : 'game'
   const currentCue = tutorialEnabled ? tutorialCue(state, screen) : null
+  const step = tutorialEnabled ? tourStep(state, screen, { scoresOpen: showScores }, explained) : null
+  const tour: TourControls | null = step ? { step, onNext: () => markExplained(step.section), onSkip: skipTour } : null
 
   return (
     <>
@@ -94,17 +107,27 @@ export default function App() {
         </div>
       )}
       {!token ? (
-        <Home notice={notice} onDismissNotice={dismissNotice} onJoined={onJoined} onQuickStart={onQuickStart} />
+        <Home notice={notice} onDismissNotice={dismissNotice} onJoined={onJoined} onQuickStart={onQuickStart} tour={tour} />
       ) : !state ? (
         <main className="screen">
           <p className="waiting">Loading room…</p>
         </main>
       ) : state.room.status === 'lobby' ? (
-        <Lobby state={state} send={sendAndMaybeLeave} quick={quick} onDismissQuick={dismiss} cue={currentCue} />
+        <Lobby state={state} send={sendAndMaybeLeave} quick={quick} onDismissQuick={dismiss} cue={currentCue} tour={tour} />
       ) : state.room.status === 'finished' ? (
-        <EndGame state={state} send={sendAndMaybeLeave} />
+        <EndGame state={state} send={sendAndMaybeLeave} tour={tour} />
       ) : (
-        <Game state={state} send={send} tutorialEnabled={tutorialEnabled} onToggleTutorial={toggleTutorial} cue={currentCue} />
+        <Game
+          state={state}
+          send={send}
+          tutorialEnabled={tutorialEnabled}
+          onToggleTutorial={toggleTutorial}
+          onReplayTour={replayTour}
+          cue={currentCue}
+          tour={tour}
+          showScores={showScores}
+          onToggleScores={() => setShowScores((s) => !s)}
+        />
       )}
     </>
   )

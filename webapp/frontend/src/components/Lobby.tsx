@@ -5,7 +5,7 @@ import type { ClientMessage, GameState } from '../types'
 import { QUICK_START_COMPANIONS, isQuickStartActive, type QuickStart } from '../useQuickStart'
 import { AddCompanionButton, MAX_PLAYERS, NoticeLabel, PlayerList, StopButton } from './Common'
 import { Table } from './Table'
-import { TutorialCue } from './TutorialCard'
+import { TutorialCue, type TourControls } from './TutorialCard'
 
 interface Props {
   state: GameState
@@ -13,6 +13,7 @@ interface Props {
   quick?: QuickStart | null
   onDismissQuick?: () => void
   cue?: Cue | null
+  tour?: TourControls | null
 }
 
 function quickStartText(quick: QuickStart): string {
@@ -27,7 +28,7 @@ function quickStartText(quick: QuickStart): string {
 export const MIN_PLAYERS = 4
 export { MAX_PLAYERS }
 
-export function Lobby({ state, send, quick = null, onDismissQuick, cue = null }: Props) {
+export function Lobby({ state, send, quick = null, onDismissQuick, cue = null, tour = null }: Props) {
   const [copied, setCopied] = useState(false)
   const [sound, setSound] = useState(sfxEnabled())
   const n = state.players.length
@@ -65,9 +66,9 @@ export function Lobby({ state, send, quick = null, onDismissQuick, cue = null }:
           </button>
         </div>
 
-        <TutorialCue cue={cue} />
+        <TutorialCue cue={cue} tour={tour} />
 
-        <section className="room-code" aria-label="Room code">
+        <section className="room-code" aria-label="Room code" data-tutorial="roomCode">
           <div className="room-code__value" data-testid="room-code">
             {state.room.code.split('').map((ch, i) => (
               <span key={i} className="room-code__tile">
@@ -80,7 +81,9 @@ export function Lobby({ state, send, quick = null, onDismissQuick, cue = null }:
           </button>
         </section>
 
-        <PlayerList players={state.players} youId={state.you.playerId} onRemoveCompanion={quickActive ? undefined : (playerId) => send({ type: 'remove_companion', playerId })} />
+        <div data-tutorial="players">
+          <PlayerList players={state.players} youId={state.you.playerId} onRemoveCompanion={quickActive ? undefined : (playerId) => send({ type: 'remove_companion', playerId })} />
+        </div>
 
         {quick && quickActive && (
           <p className="quick-progress" role="status" aria-live="polite" data-testid="quick-progress">
@@ -100,7 +103,7 @@ export function Lobby({ state, send, quick = null, onDismissQuick, cue = null }:
           </div>
         )}
 
-        <div className="actions">
+        <div className="actions" data-tutorial="start">
           <button type="button" className={`btn btn--primary btn--block${canStart ? ' btn--armed' : ''}`} disabled={!canStart} onClick={() => send({ type: 'start_game' })}>
             {canStart || quickActive ? 'Start game' : `Start game (${n}/${MIN_PLAYERS} players)`}
           </button>
