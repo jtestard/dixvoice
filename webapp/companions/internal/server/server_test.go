@@ -18,7 +18,7 @@ import (
 
 type nopBrain struct{}
 
-func (nopBrain) ChooseClue(context.Context, []protocol.Clip) (string, string, error) {
+func (nopBrain) ChooseClue(context.Context, protocol.ClueRequest) (string, string, error) {
 	return "", "", nil
 }
 func (nopBrain) ChooseSubmission(context.Context, string, []protocol.Clip) (string, error) {

@@ -20,7 +20,7 @@ Dixit is by nature a multiplayer social game. DixVoice allows for up to 8 real o
 
 ## Ambiguity
 
-AI players are interesting because they have to deal with the inherent ambiguity of the game, having to pick a card for others to vote on which is not obvious enough for everybody to get right, but not too difficult so that no one gets it right either. Results have been surpisingly good!
+AI players are interesting because they have to deal with the inherent ambiguity of the game, having to pick a card for others to vote on which is not obvious enough for everybody to get right, but not too difficult so that no one gets it right either. Results have been surpisingly good! How the companion storyteller searches for such a clue is described in [webapp/companions/README.md](webapp/companions/README.md).
 
 ## Qualifying criteria
 

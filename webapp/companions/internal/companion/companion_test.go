@@ -99,6 +99,54 @@ func TestStorytellerSubmitsClue(t *testing.T) {
 	}
 }
 
+func TestClueRequestCarriesPlayersAndHistory(t *testing.T) {
+	b := newFakeBackend(t)
+	brain := &scriptBrain{clueID: "h1", clue: "knock knock"}
+	c, fc, _ := startCompanion(t, b, brain)
+	players := []protocol.Player{{PlayerID: "p1"}, {PlayerID: "p2"}, {PlayerID: "p3"}, {PlayerID: "p4"}}
+	st := playing("p1", protocol.Round{Number: 1, Phase: protocol.PhaseStoryteller, StorytellerID: "p1"}, clips("h1", "h2", "h3"))
+	st.Players = players
+	fc.send(t, st)
+	fc.expect(t)
+	// Round 1 reveal: everyone found the companion's clip. Sent twice, it is
+	// recorded once.
+	reveal := playing("p1", protocol.Round{
+		Number: 1, Phase: protocol.PhaseReveal, StorytellerID: "p1", Clue: str("knock knock"),
+		Table: clips("h1", "t2", "t3", "t4"),
+		Reveal: &protocol.Reveal{Results: []protocol.RevealResult{
+			{ClipID: "h1", OwnerID: "p1", IsStoryteller: true, VoterIDs: []string{"p2", "p3", "p4"}},
+			{ClipID: "t2", OwnerID: "p2"},
+		}},
+	}, clips("h2", "h3"))
+	reveal.Players = players
+	fc.send(t, reveal)
+	fc.send(t, reveal)
+	// Another player's reveal is ignored.
+	other := reveal
+	other.Round = &protocol.Round{Number: 2, Phase: protocol.PhaseReveal, StorytellerID: "p2", Clue: str("x"),
+		Reveal: &protocol.Reveal{Results: []protocol.RevealResult{{ClipID: "t9", OwnerID: "p2", IsStoryteller: true, VoterIDs: []string{"p1"}}}}}
+	fc.send(t, other)
+	// Companion is the storyteller again in round 5.
+	st = playing("p1", protocol.Round{Number: 5, Phase: protocol.PhaseStoryteller, StorytellerID: "p1"}, clips("h1", "h2", "h3"))
+	st.Players = players
+	fc.send(t, st)
+	fc.expect(t)
+	reqs := brain.ClueRequests()
+	if len(reqs) != 2 {
+		t.Fatalf("clue requests: %d", len(reqs))
+	}
+	if reqs[0].Players != 4 || len(reqs[0].History) != 0 || len(reqs[0].Hand) != 3 {
+		t.Errorf("first request: %+v", reqs[0])
+	}
+	want := []protocol.StorytellerResult{{Clue: "knock knock", Finders: 3, Guessers: 3}}
+	if reqs[1].Players != 4 || fmt.Sprint(reqs[1].History) != fmt.Sprint(want) {
+		t.Errorf("second request: %+v, want history %+v", reqs[1], want)
+	}
+	if h := c.History(); fmt.Sprint(h) != fmt.Sprint(want) {
+		t.Errorf("History(): %+v", h)
+	}
+}
+
 func TestNotStorytellerWaitsInStorytellerPhase(t *testing.T) {
 	b := newFakeBackend(t)
 	brain := &scriptBrain{clueID: "h1", clue: "x", submitID: "h1", voteID: "h1"}

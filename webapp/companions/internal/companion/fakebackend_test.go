@@ -188,12 +188,22 @@ type scriptBrain struct {
 	voteID       string
 	err          error
 
-	mu    sync.Mutex
-	calls int
+	mu       sync.Mutex
+	calls    int
+	clueReqs []protocol.ClueRequest
 }
 
-func (s *scriptBrain) ChooseClue(context.Context, []protocol.Clip) (string, string, error) {
+func (s *scriptBrain) ClueRequests() []protocol.ClueRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]protocol.ClueRequest(nil), s.clueReqs...)
+}
+
+func (s *scriptBrain) ChooseClue(_ context.Context, req protocol.ClueRequest) (string, string, error) {
 	s.count()
+	s.mu.Lock()
+	s.clueReqs = append(s.clueReqs, req)
+	s.mu.Unlock()
 	return s.clueID, s.clue, s.err
 }
 

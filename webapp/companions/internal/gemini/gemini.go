@@ -9,8 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/jtestard/dixvoice/webapp/companions/internal/protocol"
 )
@@ -25,10 +27,12 @@ const (
 // Client calls the Gemini generateContent endpoint. The zero value is not
 // usable: use New.
 type Client struct {
-	baseURL string
-	apiKey  string
-	model   string
-	http    *http.Client
+	baseURL     string
+	apiKey      string
+	model       string
+	http        *http.Client
+	log         *slog.Logger
+	clueTimeout time.Duration
 }
 
 // New returns a client for baseURL (DefaultBaseURL when empty) and model
@@ -44,7 +48,31 @@ func New(baseURL, apiKey, model string, httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
-	return &Client{baseURL: strings.TrimRight(baseURL, "/"), apiKey: apiKey, model: model, http: httpClient}
+	return &Client{
+		baseURL:     strings.TrimRight(baseURL, "/"),
+		apiKey:      apiKey,
+		model:       model,
+		http:        httpClient,
+		log:         slog.New(slog.DiscardHandler),
+		clueTimeout: DefaultClueTimeout,
+	}
+}
+
+// WithLogger sets the logger for debug traces (discarded by default).
+func (c *Client) WithLogger(log *slog.Logger) *Client {
+	if log != nil {
+		c.log = log
+	}
+	return c
+}
+
+// WithClueTimeout bounds the storyteller's candidate search
+// (DefaultClueTimeout by default) before ChooseClue falls back to one shot.
+func (c *Client) WithClueTimeout(d time.Duration) *Client {
+	if d > 0 {
+		c.clueTimeout = d
+	}
+	return c
 }
 
 // Model returns the model id used for requests.
@@ -54,8 +82,10 @@ func (c *Client) Model() string { return c.model }
 // valid choice or with an empty clue.
 var ErrInvalidAnswer = errors.New("gemini: invalid answer")
 
-// ChooseClue picks a clip from the hand and writes a clue for it.
-func (c *Client) ChooseClue(ctx context.Context, hand []protocol.Clip) (clipID, clue string, err error) {
+// ChooseClueSingle picks a clip from the hand and writes a clue for it in
+// one Gemini call. ChooseClue uses it as a fallback.
+func (c *Client) ChooseClueSingle(ctx context.Context, req protocol.ClueRequest) (clipID, clue string, err error) {
+	hand := req.Hand
 	prompt := `You are playing Dixit with 2-second sound clips instead of cards. You are the storyteller.
 Each clip is described by the text that is spoken and its emotion. Pick the clip you can hint at most
 creatively and write a short, evocative clue (2 to 8 words) that fits the clip without giving it away:

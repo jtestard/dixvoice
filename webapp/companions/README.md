@@ -18,6 +18,7 @@ from their `text` and `emotion` with the Google Gemini API.
 - Moves happen after a random 2–6 s pause. Gemini (`generateContent` with a JSON response schema whose `clipId` is an
   enum of the valid clips) is given ~10 s; on error, timeout or invalid answer the companion plays a random valid
   move (and a canned clue). If the backend rejects a move (`error` message), it retries up to 3 times.
+- The storyteller move gets a longer budget (~40 s) because it runs the clue search described below.
 - It never sends `start_game`, `stop_game`, `next_round`, `leave_room`, `add_companion` or `remove_companion`.
 - `room_closed` (room stopped or companion removed) ends the companion. If the socket drops, it reconnects with the
   same token with exponential backoff (0.5 s up to 10 s, 20 attempts); a `401` on reconnect means the room is gone
@@ -25,11 +26,45 @@ from their `text` and `emotion` with the Google Gemini API.
 - Everything is in memory; companions are independent goroutines, so many rooms and companions run concurrently.
   Logs are JSON (`log/slog`).
 
+## Storyteller clue search
+
+Under Dixit scoring the storyteller scores 0 when every guesser or no guesser finds the clip, and 3 (plus 3 per
+finder) otherwise, so the best clue is one that *some* players find. A single prompt tends to paraphrase the clip's
+text, which every player finds. `internal/gemini/storyteller.go` therefore searches:
+
+1. **Candidates** — one Gemini call returns ~4 `(clipId, clue)` pairs on different clips of the hand at different
+   levels of indirection (metaphor, a scene where you would hear it, a feeling, a cultural reference). The prompt
+   spells out the scoring rule and the recent history (below).
+2. **Lexical filter** (Go, no model) — a candidate is rejected if it is longer than 8 words or shares any
+   non-stopword with the clip's text or emotion, case-insensitively and after stripping a trailing `s`/`es`/`ed`/`ing`.
+3. **Simulated guessers** — for each surviving candidate, 3 parallel "guesser" calls (temperature 1) receive the clue
+   and the companion's whole hand, shuffled, without being told the answer, and estimate how a table of human players
+   who only heard the clips would split their votes (a probability per clip). The average probability given to the
+   target is `p`.
+4. **Expected score** — with `g` = players in the room minus 1, the storyteller's expected score under the binomial
+   model is `3 * P(1 <= finders <= g-1) = 3 * (1 - (1-p)^g - p^g)`. The candidate maximising it wins, ties go to the
+   lower `p`. The chosen `p` and expected score are logged at debug level.
+5. **Fallback** — if the candidates call fails, every candidate is filtered out, all guesser calls fail or the search
+   exceeds its 25 s timeout, the companion uses the previous single-shot prompt (`ChooseClueSingle`), and after that
+   the random clip + canned clue, so the game never stalls.
+
+**Learning within a game.** After each reveal in which the companion was the storyteller, it records how many of the
+`g` guessers found its clip. The last 5 results go into the candidate prompt ("everyone found *X*, be more oblique" /
+"nobody found *Y*, be a bit more direct").
+
+**Live evaluation.** `cmd/evalclues` deals hands from `webapp/audio/library/manifest.json`, asks both the old
+single-shot prompt and the new search for a clue and reports the distribution of simulated find rates:
+
+```sh
+GEMINI_API_KEY=... go run ./cmd/evalclues -hands 20 -players 4
+```
+
 ## Layout
 
 - `cmd/companions`: the binary.
+- `cmd/evalclues`: opt-in live comparison of the storyteller strategies against the real Gemini API.
 - `internal/protocol`: the JSON messages of the backend protocol.
-- `internal/gemini`: Gemini REST client, prompts and answer validation.
+- `internal/gemini`: Gemini REST client, prompts and answer validation; `storyteller.go` is the clue search.
 - `internal/companion`: one companion (join, WebSocket loop, decisions, fallback, reconnect).
 - `internal/server`: HTTP API and the set of running companions.
 - `e2e`: full game against the real backend (see Test).
@@ -43,6 +78,7 @@ from their `text` and `emotion` with the Google Gemini API.
 | `GEMINI_API_KEY` | | Google Gemini API key. Without it every decision falls back to a random move. |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model id (current stable Flash model). |
 | `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com` | Override for tests or proxies. |
+| `LOG_LEVEL` | `info` | `debug` also logs the storyteller search (candidates, chosen `p`, expected score). |
 
 ## Run locally
 

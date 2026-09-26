@@ -24,14 +24,18 @@ func env(key, def string) string {
 }
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(env("LOG_LEVEL", "info"))); err != nil {
+		level = slog.LevelInfo
+	}
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	port := env("PORT", "8080")
 	backendURL := env("BACKEND_URL", "http://localhost:8080")
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		log.Warn("GEMINI_API_KEY is not set: every Gemini call will fail and companions will play random moves")
 	}
-	brain := gemini.New(env("GEMINI_BASE_URL", gemini.DefaultBaseURL), apiKey, os.Getenv("GEMINI_MODEL"), &http.Client{Timeout: 15 * time.Second})
+	brain := gemini.New(env("GEMINI_BASE_URL", gemini.DefaultBaseURL), apiKey, os.Getenv("GEMINI_MODEL"), &http.Client{Timeout: 15 * time.Second}).WithLogger(log)
 
 	srv := server.New(companion.Config{BackendURL: backendURL, Brain: brain}, log)
 	httpSrv := &http.Server{
