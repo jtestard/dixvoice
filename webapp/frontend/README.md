@@ -45,6 +45,18 @@ Upload `dixvoice-frontend.zip` as an HTML project: set "This file will be played
 `base: './'` so the bundle works from itch.io's zip hosting. The backend's `ALLOWED_ORIGINS` must include the itch.io
 domain the game is served from.
 
+## Container (hosted at https://dixvoice-web.api.gcast.app)
+
+Multi-stage `Dockerfile` (build context: `webapp/frontend`): Node builds `dist/` with `VITE_BACKEND_URL` (default
+`https://dixvoice.api.gcast.app`), then `nginxinc/nginx-unprivileged` serves it as non-root on port 8080 with an SPA
+fallback to `index.html`, `immutable` caching for `/assets/*` and `no-cache` for everything else. `GET /` returns 200
+(readiness probe). Kubernetes manifests live in `deploy/k8s/`.
+
+```sh
+docker buildx build --platform linux/arm64 --build-arg VITE_BACKEND_URL=https://dixvoice.api.gcast.app -t dixvoice-frontend webapp/frontend
+docker run --rm -p 8080:8080 dixvoice-frontend
+```
+
 ## Notes
 
 - The session token is kept in `localStorage`; the app reconnects automatically (exponential backoff, max 10 s) and
