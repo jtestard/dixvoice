@@ -30,6 +30,8 @@ spec:
               value: "8080"
             - name: AUDIO_SERVICE_URL
               value: "http://dixvoice-audio.dixvoice.svc.cluster.local" # TBD: audio service address
+            - name: COMPANION_SERVICE_URL
+              value: "http://dixvoice-companions.dixvoice.svc.cluster.local:8080"
             - name: ALLOWED_ORIGINS
               value: "https://dixvoice-web.api.gcast.app,http://localhost:5173"
           readinessProbe:

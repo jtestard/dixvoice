@@ -58,8 +58,8 @@ Terms, from largest to smallest:
   Several rooms can exist at the same time.
 - Players **join with the code** and a nickname. Joining fails if the code does not exist, if the room already has 8
   players ("no more room"), or if the game has started.
-- **Any player can press Start** once at least 4 players are in the room. Starting the game **locks the room**: nobody
-  new can join.
+- **Any player can press Start** once at least 4 players are in the room (AI companions count, see AI companions).
+  Starting the game **locks the room**: nobody new can join.
 - **Any player can press Stop**. Stopping ejects everybody and **deletes the room**.
 - A room is also deleted when its last player leaves.
 - After the end of a game, players stay in the room and see the final scores. Any player can start a new game with the
@@ -95,7 +95,8 @@ Screens and features:
 - **Home**: enter a nickname, then either create a room or join one with a code. Show the join errors clearly (unknown
   code, room full: "no more room", game already started).
 - **Lobby**: show the room code (easy to read aloud and copy), the connected players, a Start button (enabled with 4+
-  players), a Stop button and a Leave button.
+  players), a Stop button, a Leave button, an "Add AI companion" button (hidden when the room is full) and a remove
+  button next to each companion. Companions show a bot badge wherever player names appear.
 - **Hand**: the player's 6 clips as cards; tapping a card plays its sound.
 - **Round screens**, one per phase (see Game rules): the storyteller picks a clip and writes a clue; the others pick a
   clip; everyone votes on the shuffled clips; the reveal shows owners, votes and points won. Show who has already
@@ -141,9 +142,13 @@ Responsibilities:
   the dealt clips to the used sounds, rotate the storyteller, enforce phase order, validate every action (right
   phase, right player, clip in hand, no self-vote), score each round and detect the end of game.
 - **Audio service**: the first version only calls `GET /audio/list` for dealing. It does not call `POST /audio`.
-- **Audio proxy**: the backend exposes the audio service's read endpoints to the frontend, which cannot reach the
-  service (see Protocol). It forwards the request and returns only each sound's `id` and `clipUrl`, never `text`,
-  `emotion` or `voiceId`.
+- **Audio proxy**: the backend exposes the audio service's read endpoints to clients, which cannot reach the
+  service (see Protocol). It forwards the request and returns the AudioResponse unchanged.
+- **Companions**: on `add_companion`, the backend calls `POST {COMPANION_SERVICE_URL}/companions` with
+  `{"roomCode": "KXQP"}`; the companion service then joins the room like any client (see AI companions). On
+  `remove_companion`, the backend removes that player and closes their socket with `room_closed`
+  (`"reason": "removed"`). The WebSocket origin check accepts connections without an `Origin` header (non-browser
+  clients such as companions).
 
 #### Protocol
 
@@ -154,9 +159,9 @@ HTTP:
 | Method and path | Body | Response |
 | --- | --- | --- |
 | `POST /rooms` | `{"nickname": "Ana"}` | `201 {"roomCode": "KXQP", "playerId": "p1", "token": "..."}` |
-| `POST /rooms/{code}/join` | `{"nickname": "Ben"}` | `200 {"roomCode": "KXQP", "playerId": "p2", "token": "..."}` |
-| `GET /audio/list` | | `200 [{"id": "...", "clipUrl": "..."}]`: proxy of the audio service |
-| `GET /audio/{id}` | | `200 {"id": "...", "clipUrl": "..."}`, `404`: proxy of the audio service |
+| `POST /rooms/{code}/join` | `{"nickname": "Ben"}`, or `{"nickname": "Robo Ada", "companion": true}` for an AI companion | `200 {"roomCode": "KXQP", "playerId": "p2", "token": "..."}` |
+| `GET /audio/list` | | `200 [AudioResponse, ...]`: proxy of the audio service |
+| `GET /audio/{id}` | | `200 AudioResponse`, `404`: proxy of the audio service |
 | `GET /healthz` | | `200` |
 
 Join errors: `404 room_not_found`, `409 room_full`, `409 game_started`, `400 invalid_nickname`.
@@ -171,6 +176,8 @@ Client to server (`{"type": ..., ...}`):
 | `start_game` | | lobby or finished, 4+ players |
 | `stop_game` | | any time |
 | `leave_room` | | lobby or finished |
+| `add_companion` | | lobby or finished, fewer than 8 players |
+| `remove_companion` | `playerId` | lobby or finished, target is a companion |
 | `submit_clue` | `clipId`, `clue` | storyteller, phase `storyteller` |
 | `submit_clip` | `clipId` | non-storyteller, phase `submit`, once |
 | `vote` | `clipId` | non-storyteller, phase `vote`, once, not own clip |
@@ -181,7 +188,7 @@ Server to client:
 - `state`: the full snapshot for this player (below), sent after every change.
 - `error`: `{"type": "error", "code": "not_your_turn", "message": "..."}`, sent only to the player whose action was
   rejected. Codes include `invalid_phase`, `not_your_turn`, `clip_not_in_hand`, `already_submitted`, `cannot_vote_own`,
-  `not_enough_players`.
+  `not_enough_players`, `room_full`, `not_a_companion`, `companion_unavailable`.
 - `room_closed`: `{"type": "room_closed", "reason": "stopped"}`, then the server closes the socket. The frontend
   returns to the Home screen.
 
@@ -193,11 +200,14 @@ State snapshot:
   "room": { "code": "KXQP", "status": "lobby | playing | finished", "targetScore": 10 },
   "you": {
     "playerId": "p1",
-    "hand": [ { "clipId": "a12", "clipUrl": "https://dp1tbjxi4bfec.cloudfront.net/audio/a12.mp3" } ]
+    "hand": [
+      { "clipId": "a12", "clipUrl": "https://dp1tbjxi4bfec.cloudfront.net/audio/a12.mp3",
+        "text": "Is anyone there?", "emotion": "eerie", "voiceId": "6MFfc37kq0sBjBjy" }
+    ]
   },
   "players": [
     { "playerId": "p1", "nickname": "Ana", "connected": true, "score": 12,
-      "isStoryteller": true, "hasSubmitted": true, "hasVoted": false }
+      "isStoryteller": true, "hasSubmitted": true, "hasVoted": false, "isCompanion": false }
   ],
   "round": {
     "number": 3,
@@ -206,7 +216,10 @@ State snapshot:
     "clue": "a door in the rain",
     "yourSubmission": "a12",
     "yourVote": null,
-    "table": [ { "clipId": "a12", "clipUrl": "https://dp1tbjxi4bfec.cloudfront.net/audio/a12.mp3" } ],
+    "table": [
+      { "clipId": "a12", "clipUrl": "https://dp1tbjxi4bfec.cloudfront.net/audio/a12.mp3",
+        "text": "Is anyone there?", "emotion": "eerie", "voiceId": "6MFfc37kq0sBjBjy" }
+    ],
     "reveal": {
       "results": [ { "clipId": "a12", "ownerId": "p1", "isStoryteller": true, "voterIds": ["p2"] } ],
       "points": { "p1": 3, "p2": 3 }
@@ -218,8 +231,10 @@ State snapshot:
 
 - `round` is `null` in the lobby. `clue` is `null` until the storyteller submits it. `table` is empty until the vote
   phase. `reveal` is `null` until the reveal phase.
-- `clipId` is the AudioResponse's UUID (`id`) and `clipUrl` its CDN URL. The `text`, `emotion` and `voiceId` of
-  clips are never sent to players.
+- A clip is the full AudioResponse, with `id` renamed `clipId`: `clipId`, `clipUrl`, `text`, `emotion`, `voiceId`.
+  Every client gets them, because AI companions choose clips from `text` and `emotion` only. The web UI does not
+  display `text`, `emotion` or `voiceId`: human players only listen to the clips.
+- `isCompanion` is `true` for AI companions (see AI companions).
 - `hand` has 6 entries during a round, and is empty in the lobby and at the end of a game.
 - `winnerIds` is filled when `room.status` is `finished`.
 
@@ -229,7 +244,8 @@ The backend ships as a container image (multi-stage `Dockerfile` in `./webapp/ba
 replica**: all rooms live in memory, so a second replica would not see the rooms of the first. A restart of the pod
 deletes every room and game in progress, which is acceptable for the hackathon. See [Deployment](#deployment).
 
-- **Configuration** through environment variables: `PORT` (default 8080), `AUDIO_SERVICE_URL`, and `ALLOWED_ORIGINS`
+- **Configuration** through environment variables: `PORT` (default 8080), `AUDIO_SERVICE_URL`,
+  `COMPANION_SERVICE_URL`, and `ALLOWED_ORIGINS`
   (comma-separated, for CORS and the WebSocket origin check: `https://dixvoice-web.api.gcast.app`, the itch.io
   domains when published there, and `http://localhost:5173` for dev).
 - **Health check**: `GET /healthz` for liveness and readiness probes.
@@ -242,6 +258,35 @@ To be filled in later:
 - Go version: `TBD` (use the latest stable).
 - WebSocket library: `TBD` (e.g. `github.com/coder/websocket`).
 
+### AI companions
+
+Root dir: ./webapp/companions
+
+AI companions are fake players that fill seats so a game can start with fewer than 4 humans. They play through the
+exact same HTTP and WebSocket protocol as the web app, from a separate service and pod.
+
+- **Joining**: a player presses "Add AI companion" in the lobby; the backend calls the companion service with
+  `POST /companions {"roomCode": "KXQP"}` (internal, answers `202`). The service picks a nickname (e.g. "Robo Ada"),
+  calls `POST /rooms/{code}/join` with `"companion": true`, and opens `GET /ws?token=...` on the backend's internal
+  address. It runs one companion per call, several per room if asked several times.
+- **Rules**: companions count as players for the 4–8 limit and score like everyone else. They are shown with a bot
+  badge (`isCompanion: true`).
+- **Decisions**, from each clip's `text` and `emotion` only (never the audio), with the Google Gemini API:
+  - as storyteller: pick a clip from the hand and write a short, evocative clue that fits it without giving it away;
+  - in the submit phase: pick the clip from the hand that best matches the clue;
+  - in the vote phase: vote for the clip on the table most likely to be the storyteller's, never its own.
+  - They act after a short random delay (2–6 s) so the game feels natural, and fall back to a random valid move if
+    Gemini fails or times out.
+- **Never** presses Start, Stop, Next round or New game: humans drive the game.
+- **Lifetime**: a companion disconnects on `room_closed` (room stopped or companion removed). If its socket drops, it
+  reconnects with its token. The service keeps all state in memory.
+- **Service**: Go (like the backend), `POST /companions` and `GET /healthz` on `PORT` (default 8080), configured
+  with `BACKEND_URL` (internal, e.g. `http://dixvoice-backend.dixvoice.svc.cluster.local:8080`), `GEMINI_API_KEY`
+  (from a Kubernetes secret) and `GEMINI_MODEL` (default: a current fast Gemini Flash model). Gemini is asked for
+  JSON output so answers are easy to validate.
+- The backend reaches it at `COMPANION_SERVICE_URL` (e.g. `http://dixvoice-companions.dixvoice.svc.cluster.local:8080`).
+  It is not exposed publicly.
+
 ## Deployment
 
 Everything runs on the gcast EKS cluster (context `gcast-eks`), in the `dixvoice` namespace, with plain Kubernetes
@@ -251,12 +296,16 @@ files in [`deploy/k8s/`](deploy/k8s) (no Terraform for now):
 | --- | --- | --- | --- |
 | Web app (static build served by nginx) | https://dixvoice-web.api.gcast.app | `398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-web:latest` | 8080 |
 | Backend (Go, HTTP + WebSocket) | https://dixvoice.api.gcast.app | `398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-backend:latest` | 8080 |
+| Audio service (Python) | internal only: `http://dixvoice-audio.dixvoice.svc.cluster.local` | `398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-audio:latest` | 80 |
+| AI companions (Go + Gemini) | internal only: `http://dixvoice-companions.dixvoice.svc.cluster.local:8080` | `398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-companions:latest` | 8080 |
 
 - `00-namespace.yaml`: the `dixvoice` namespace.
 - `01-certificate.yaml`: one cert-manager certificate for both hosts, from the `letsencrypt-prod` cluster issuer
   (DNS-01 through Route53). DNS already points `*.api.gcast.app` to the Contour load balancer.
 - `backend.yaml` and `web.yaml`: Deployment, Service and Contour Ingress for each app. The backend ingress allows
   WebSocket upgrades (`projectcontour.io/websocket-routes`), like gcast-proxy.
+- `audio.yaml` and `companions.yaml`: Deployment and internal Service, no Ingress. Their API keys come from
+  secrets created by `make audio-secret` and `make companions-secret` from files in the git-ignored `secret/` folder.
 - Cluster nodes are **arm64**: images are built with `docker buildx --platform linux/arm64`.
 - The web image is built with `--build-arg VITE_BACKEND_URL=https://dixvoice.api.gcast.app`. The same frontend can
   still be packaged as a zip for itch.io.
@@ -265,8 +314,9 @@ To build and deploy, use the [`Makefile`](Makefile) (needs docker buildx, the aw
 account, and kubectl with the `gcast-eks` context):
 
 ```bash
-make deploy           # build, push and roll out both apps
-make deploy-backend   # or deploy-web
+make deploy           # build, push and roll out all apps
+make deploy-backend   # or deploy-web, deploy-audio, deploy-companions
+make companions-secret  # create the Gemini key secret from secret/gemini.key (audio-secret for the audio service)
 make build            # build both images locally, without pushing
 make status           # pods, ingresses and certificate
 make logs-backend     # or logs-web

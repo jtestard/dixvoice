@@ -1,0 +1,71 @@
+# AI companions (Go + Gemini): fake players that join rooms through the backend's protocol.
+# Cluster-internal only, no Ingress. The backend reaches it at
+# http://dixvoice-companions.dixvoice.svc.cluster.local:8080.
+# Secret: `make companions-secret` creates dixvoice-companions-secrets (GEMINI_API_KEY) from secret/gemini.key.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dixvoice-companions
+  namespace: dixvoice
+  labels:
+    app: dixvoice-companions
+spec:
+  # Exactly 1 replica: running companions live in memory.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dixvoice-companions
+  template:
+    metadata:
+      labels:
+        app: dixvoice-companions
+    spec:
+      containers:
+        - name: dixvoice-companions
+          image: 398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-companions:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: BACKEND_URL
+              value: http://dixvoice-backend.dixvoice.svc.cluster.local:8080
+          envFrom:
+            - secretRef:
+                name: dixvoice-companions-secrets
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dixvoice-companions
+  namespace: dixvoice
+  labels:
+    app: dixvoice-companions
+spec:
+  selector:
+    app: dixvoice-companions
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
