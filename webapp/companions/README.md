@@ -77,6 +77,7 @@ GEMINI_API_KEY=... go run ./cmd/evalclues -hands 20 -players 4
 | `GEMINI_API_KEY` | | Google Gemini API key. Without it every decision falls back to a random move. |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model id (current stable Flash model). |
 | `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com` | Override for tests or proxies. |
+| `LOG_LEVEL` | `info` | `debug` also logs the storyteller search (candidates, chosen `p`, expected score). |
 
 ## Run locally
 
