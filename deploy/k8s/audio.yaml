@@ -49,6 +49,9 @@ spec:
               value: "0"
             - name: DATA_DIR
               value: /data
+            # Library version to list (manifest-v1.json = first library, fixed temperature per preset).
+            - name: LIBRARY_MANIFEST
+              value: manifest.json
           envFrom:
             # GRADIUM_API_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY. Use a key limited to the
             # dixvoice-clips-write policy (or an EKS Pod Identity association), never an admin key.

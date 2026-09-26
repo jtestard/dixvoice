@@ -1,13 +1,17 @@
 """Builds the library: short spoken lines (text + emotion) rendered once with the same pipeline as live generation
-(same presets, cleaning, 2-second fit, levels and mp3 encoder), so library and generated clips cannot be told apart.
+(same voices, temperature and speed from the emotion, cleaning, 2-second fit, levels and mp3 encoder), so library
+and generated clips cannot be told apart.
 
     uv run python tools/build_library.py                    # PROVIDER=fake by default: placeholder clips, no credits
     GRADIUM_API_KEY=... uv run python tools/build_library.py --provider gradium
     uv run python tools/build_library.py --check            # files present, <= 2 s, fields filled
+    uv run python tools/build_library.py --upload           # put the clips missing from the S3 bucket (AWS keys)
 
 Input:  library/lines.json   [{"text": "Trop tard !", "emotion": "angry", "voiceId": "<optional>"}, ...]
-Output: library/clips/<uuid>.mp3 and library/manifest.json. Ids are UUID v4 drawn once per (text, emotion) and kept
-across rebuilds, so ids already dealt stay valid. Existing clips are not regenerated unless --force.
+Output: library/clips/<uuid>.mp3 and the manifest (library/manifest.json by default, see --manifest and
+LIBRARY_MANIFEST). Ids are UUID v4 drawn once per (text, emotion) and kept across rebuilds of the same manifest, so
+ids already dealt stay valid; a new manifest gets new ids (the CDN caches every id forever, so new audio needs a new
+id). Existing clips are not regenerated unless --force.
 """
 
 from __future__ import annotations
@@ -20,23 +24,24 @@ import uuid
 from pathlib import Path
 
 from audio_service import audio
-from audio_service.emotion import EmotionMapper, guess_language, length_padding
+from audio_service.emotion import EmotionMapper
 from audio_service.errors import ApiError
 from audio_service.main import make_provider
 from audio_service.settings import Settings
+from audio_service.storage import S3Storage
 from audio_service.textguard import TextGuard
 
 ROOT = Path(__file__).resolve().parents[1]
 LIB = ROOT / "library"
 
 
-def load_manifest() -> list[dict]:
-    path = LIB / "manifest.json"
+def load_manifest(name: str) -> list[dict]:
+    path = LIB / name
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
 
 
-def save_manifest(entries: list[dict]) -> None:
-    (LIB / "manifest.json").write_text(json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+def save_manifest(name: str, entries: list[dict]) -> None:
+    (LIB / name).write_text(json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def check(entries: list[dict]) -> int:
@@ -55,12 +60,12 @@ def check(entries: list[dict]) -> int:
     return errors
 
 
-async def build(provider_name: str, force: bool) -> None:
+async def build(manifest: str, provider_name: str, force: bool) -> None:
     settings = Settings(provider=provider_name)
     provider = make_provider(settings)
     mapper, guard = EmotionMapper(settings.config_dir), TextGuard(settings.config_dir / "blocklist.txt")
     lines = json.loads((LIB / "lines.json").read_text(encoding="utf-8"))
-    entries = {(e["text"], e["emotion"]): e for e in load_manifest()}
+    entries = {(e["text"], e["emotion"]): e for e in load_manifest(manifest)}
     (LIB / "clips").mkdir(exist_ok=True)
     await provider.start()
     try:
@@ -74,33 +79,49 @@ async def build(provider_name: str, force: bool) -> None:
                 guard.check_blocked(line["text"], line["emotion"])
             except ApiError as exc:
                 print(f"skip {line['text']!r}: {exc.code}"); continue
-            preset = mapper.preset_for(line["emotion"])
-            voice = line.get("voiceId") or preset.voice_for(guess_language(spoken))
-            padding = max(-4.0, min(4.0, preset.padding_bonus + length_padding(len(spoken))))
-            syn = await provider.synthesize(spoken, voice, preset.temp, padding)
+            d = mapper.delivery(line["emotion"], spoken, line.get("voiceId"))
+            syn = await provider.synthesize(spoken, d.voice_id, d.temp, d.padding_bonus)
             out = audio.process(syn.pcm16, syn.sample_rate, syn.words)
             clip_id = old["id"] if old else str(uuid.uuid4())
             (LIB / "clips" / f"{clip_id}.mp3").write_bytes(audio.encode_mp3(out.samples, out.sample_rate))
             entries[key] = {"id": clip_id, "file": f"clips/{clip_id}.mp3", "text": line["text"],
-                            "emotion": line["emotion"], "voice_id": voice, "model": syn.model,
+                            "emotion": line["emotion"], "voice_id": d.voice_id, "preset": d.preset, "level": d.level,
+                            "temp": d.temp, "padding_bonus": d.padding_bonus, "model": syn.model,
                             "duration_ms": round(out.duration_s * 1000), "truncated": out.truncated,
                             "deal": line.get("deal", True), "enabled": line.get("enabled", True)}
-            print(f"{clip_id}  {out.duration_s:.2f}s  {syn.model:>16}  {line['emotion']:<12} {line['text']}")
+            print(f"{clip_id}  {out.duration_s:.2f}s  lvl {d.level:.2f} temp {d.temp:.2f} speed {d.padding_bonus:+.2f}"
+                  f"  {line['emotion']:<12} {line['text']}")
     finally:
         await provider.close()
-    save_manifest(sorted(entries.values(), key=lambda e: e["id"]))
+    save_manifest(manifest, sorted(entries.values(), key=lambda e: e["id"]))
+
+
+async def upload(manifest: str) -> None:
+    settings = Settings()
+    storage = S3Storage(settings.s3_bucket, settings.aws_region, settings.data_dir)
+    sent = 0
+    for e in load_manifest(manifest):
+        if not await storage.has_clip(e["id"]):
+            await storage.put_clip(e["id"], (LIB / e["file"]).read_bytes())
+            sent += 1
+    print(f"{sent} clip(s) uploaded to s3://{settings.s3_bucket}/audio/")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--manifest", default=Settings().library_manifest, help="manifest file name in library/")
     ap.add_argument("--provider", default="fake", choices=["fake", "gradium"])
     ap.add_argument("--force", action="store_true", help="regenerate clips that already exist")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--upload", action="store_true", help="upload the clips missing from the S3 bucket")
     args = ap.parse_args()
     if args.check:
-        sys.exit(1 if check(load_manifest()) else 0)
-    asyncio.run(build(args.provider, args.force))
-    sys.exit(1 if check(load_manifest()) else 0)
+        sys.exit(1 if check(load_manifest(args.manifest)) else 0)
+    if args.upload:
+        asyncio.run(upload(args.manifest))
+        return
+    asyncio.run(build(args.manifest, args.provider, args.force))
+    sys.exit(1 if check(load_manifest(args.manifest)) else 0)
 
 
 if __name__ == "__main__":

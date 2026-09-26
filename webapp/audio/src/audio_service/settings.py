@@ -41,6 +41,8 @@ class Settings:
 
     config_dir: Path = field(default_factory=lambda: Path(_env("CONFIG_DIR", str(PACKAGE_ROOT / "config"))))
     library_dir: Path = field(default_factory=lambda: Path(_env("LIBRARY_DIR", str(PACKAGE_ROOT / "library"))))
+    # Manifest of the library clips to list, in library_dir (previous versions are kept, e.g. manifest-v1.json).
+    library_manifest: str = field(default_factory=lambda: _env("LIBRARY_MANIFEST", "manifest.json"))
 
     max_chars: int = field(default_factory=lambda: int(_env("MAX_CHARS", "100")))
     max_concurrency: int = field(default_factory=lambda: int(_env("MAX_CONCURRENCY", "4")))

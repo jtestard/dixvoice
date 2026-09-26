@@ -24,8 +24,6 @@ class Storage(Protocol):
 
     async def has_clip(self, clip_id: str) -> bool: ...
 
-    async def get_clip(self, clip_id: str) -> bytes | None: ...
-
     async def put_object(self, clip_id: str, data: bytes) -> None: ...
 
     async def list_objects(self) -> list[bytes]: ...
@@ -56,10 +54,6 @@ class LocalStorage:
 
     async def has_clip(self, clip_id: str) -> bool:
         return (self.audio_dir / f"{clip_id}.mp3").exists()
-
-    async def get_clip(self, clip_id: str) -> bytes | None:
-        path = self.audio_dir / f"{clip_id}.mp3"
-        return path.read_bytes() if path.exists() else None
 
     async def put_object(self, clip_id: str, data: bytes) -> None:
         await asyncio.to_thread(_atomic_write, self.objects_dir / f"{clip_id}.json", data)
@@ -103,11 +97,3 @@ class S3Storage(LocalStorage):
             if exc.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
                 return False
             raise
-
-    async def get_clip(self, clip_id: str) -> bytes | None:
-        from botocore.exceptions import ClientError
-        try:
-            obj = await asyncio.to_thread(partial(self.s3.get_object, Bucket=self.bucket, Key=self._key(clip_id)))
-            return obj["Body"].read()
-        except ClientError:
-            return None

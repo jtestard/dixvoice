@@ -74,3 +74,42 @@ def test_emotion_mapping():
     assert m.preset_for("JOYFUL").id == "joyful"
     assert m.preset_for("très triste").id == "calm"
     assert m.preset_for("zzz inconnu").id == m.default
+
+
+@pytest.fixture
+def mapper():
+    return EmotionMapper(PACKAGE_ROOT / "config")
+
+
+def test_excitement_sets_temperature_and_speed(mapper):
+    tired = mapper.delivery("tired", "Five more minutes")
+    neutral = mapper.delivery("neutral", "Turn left here")
+    excited = mapper.delivery("excited", "Here it comes")
+    assert tired.temp < neutral.temp < excited.temp
+    assert tired.padding_bonus > neutral.padding_bonus > excited.padding_bonus  # calm = slower
+    assert (neutral.temp, neutral.padding_bonus) == (0.7, 0.0)  # level 0.5 = Gradium's defaults
+    for emotion in ("tired", "furious", "sad", "hilarious", "eerie", "joyful"):
+        assert 0.35 <= mapper.delivery(emotion, "Hello").temp <= 1.05
+
+
+def test_intensifiers_exclamation_and_unknown_emotions(mapper):
+    angry = mapper.level("angry", "Who ate my sandwich")
+    assert mapper.level("very angry", "Who ate my sandwich") == pytest.approx(min(1.0, angry + 0.15))
+    assert mapper.level("angry", "Who ate my sandwich!") == pytest.approx(angry + 0.1)
+    assert mapper.level("a bit sad", "Oh") == pytest.approx(mapper.level("sad", "Oh") - 0.15)
+    assert mapper.level("un peu triste", "Oh") == pytest.approx(mapper.level("triste", "Oh") - 0.15)
+    assert mapper.level("grumpy", "Oh") == 0.5 and mapper.level("very grumpy", "Oh") == pytest.approx(0.65)
+    assert mapper.level("extremely furious", "Go!") == 1.0  # capped
+    assert mapper.level("very tired", "Oh") >= 0.0 and mapper.level("a bit bored", "Oh") == 0.0  # floored
+
+
+def test_voice_override_keeps_the_delivery(mapper):
+    base = mapper.delivery("tired", "Hello there")
+    forced = mapper.delivery("tired", "Hello there", "YKeBw3OV1RgpdhLh")
+    assert forced.voice_id == "YKeBw3OV1RgpdhLh" and (forced.temp, forced.padding_bonus) == (base.temp, base.padding_bonus)
+
+
+def test_long_texts_are_sped_up_on_top(mapper):
+    short = mapper.delivery("neutral", "Turn left")
+    long = mapper.delivery("neutral", "Turn left at the second traffic light please")
+    assert long.padding_bonus < short.padding_bonus and long.temp == short.temp

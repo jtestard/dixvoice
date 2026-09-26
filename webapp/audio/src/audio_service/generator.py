@@ -4,24 +4,22 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
-import hashlib
 import json
 import logging
 import time
 import uuid
 
 from . import audio
-from .emotion import EmotionMapper, guess_language, length_padding
+from .emotion import EmotionMapper
 from .errors import ApiError
 from .models import AudioRequest, AudioResponse
 from .providers.base import Provider, ProviderError, ProviderTimeout, ProviderUnavailable, UnknownVoice
 from .registry import Registry
 from .settings import Settings
 from .storage import Storage
-from .textguard import TextGuard, normalize_word_key
+from .textguard import TextGuard
 
 log = logging.getLogger("audio_service.generate")
-PROCESSING_VERSION = "1"
 
 
 class Generator:
@@ -51,29 +49,16 @@ class Generator:
         if len(spoken) > self.settings.max_chars:
             raise ApiError(400, "text_too_long", f"At most {self.settings.max_chars} characters.")
         self.guard.check_blocked(req.text, req.emotion)
-        preset = self.mapper.preset_for(req.emotion)
-        language = guess_language(spoken)
-        voice_id = req.voiceId or preset.voice_for(language)
-        padding = max(-4.0, min(4.0, preset.padding_bonus + length_padding(len(spoken))))
-        model_tag = getattr(self.provider, "model", self.provider.name)
-        dedup_key = hashlib.sha256("|".join(
-            [normalize_word_key(spoken), normalize_word_key(req.emotion), preset.id, voice_id, str(model_tag), PROCESSING_VERSION]
-        ).encode()).hexdigest()
+        d = self.mapper.delivery(req.emotion, spoken, req.voiceId)
 
+        # No duplicate cache: with a temperature above 0, every generation is a new take, even for the same request.
         timings: dict[str, float] = {}
-        mp3 = None
-        source_id = self.registry.duplicate_of(dedup_key)
-        if source_id:
-            mp3 = await self.storage.get_clip(source_id)
-        truncated, spoken_text, model = False, None, "cache"
-        if mp3 is None:
-            source_id = None
-            try:
-                mp3, truncated, spoken_text, model = await self._synthesize(spoken, voice_id, preset.temp, padding, timings)
-            except UnknownVoice as exc:
-                if req.voiceId:
-                    raise ApiError(400, "unknown_voice", f"Gradium has no voice {req.voiceId!r}.") from exc
-                raise ApiError(502, "provider_error", f"Preset voice {voice_id!r} is unknown to Gradium.") from exc
+        try:
+            mp3, truncated, spoken_text, model = await self._synthesize(spoken, d.voice_id, d.temp, d.padding_bonus, timings)
+        except UnknownVoice as exc:
+            if req.voiceId:
+                raise ApiError(400, "unknown_voice", f"Gradium has no voice {req.voiceId!r}.") from exc
+            raise ApiError(502, "provider_error", f"Preset voice {d.voice_id!r} is unknown to Gradium.") from exc
 
         clip_id = str(uuid.uuid4())
         t_up = time.perf_counter()
@@ -84,13 +69,14 @@ class Generator:
             raise ApiError(502, "cdn_upload_failed", "Could not store the mp3 on the CDN.") from exc
         timings["cdn_upload"] = (time.perf_counter() - t_up) * 1000
 
-        sound = AudioResponse(id=clip_id, text=req.text, emotion=req.emotion, voiceId=voice_id,
+        sound = AudioResponse(id=clip_id, text=req.text, emotion=req.emotion, voiceId=d.voice_id,
                               clipUrl=self.settings.clip_url(clip_id))
-        await self.registry.add_generated(sound, dedup_key)
+        await self.registry.add_generated(sound)
         timings["total"] = (time.perf_counter() - t0) * 1000
         log.info(json.dumps({  # never the text itself
-            "event": "generated", "id": clip_id, "emotion": req.emotion, "preset": preset.id, "language": language,
-            "chars": len(spoken), "model": model, "cached": source_id is not None, "truncated": truncated,
+            "event": "generated", "id": clip_id, "emotion": req.emotion, "preset": d.preset, "language": d.language,
+            "level": d.level, "temp": d.temp, "padding_bonus": d.padding_bonus,
+            "chars": len(spoken), "model": model, "truncated": truncated,
             "spoken_words": len(spoken_text.split()) if spoken_text else None,
             "timings_ms": {k: round(v, 1) for k, v in timings.items()},
         }))

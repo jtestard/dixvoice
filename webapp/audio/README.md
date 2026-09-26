@@ -63,6 +63,7 @@ To run the backend against it: `AUDIO_SERVICE_URL=http://localhost:8080 PORT=900
 | `S3_BUCKET` / `AWS_REGION` | `dixvoice-clips` / `eu-west-1` | Bucket of the mp3 files; keys in `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`. |
 | `CDN_PUBLIC_URL` | `http://localhost:8080/cdn` | Prefix of every `clipUrl` (production: `https://dp1tbjxi4bfec.cloudfront.net`). |
 | `SERVE_LOCAL_CDN` | `1` | Dev only: serve `LOCAL_CDN_DIR` under `/cdn`. |
+| `LIBRARY_MANIFEST` | `manifest.json` | Library manifest to list, in `library/` (e.g. `manifest-v1.json` to go back to the first library). |
 | `LOCAL_CDN_DIR` / `DATA_DIR` | `/tmp/dixvoice-cdn` / `/tmp/dixvoice-data` | Local mp3 files / objects of generated sounds. |
 | `MAX_CONCURRENCY` | `4` | Simultaneous generations. |
 | `DAILY_CHAR_BUDGET` | `50000` | Gradium credits per day (1 credit per character). |
@@ -89,10 +90,31 @@ flat, `{"error": "<code>", "message": "…"}`:
 ## How a clip is made
 
 1. Text cleaning: typographic quotes normalized, `<` and `>` removed (no Gradium tags from players), digits refused.
-2. Voice: the request's `voiceId` if given; otherwise the free-text emotion is matched against
-   [`config/emotions.json`](config/emotions.json) (French and English words) to a preset of
-   [`config/presets.json`](config/presets.json): a Gradium voice (French or English, from the language of the text), a
-   liveliness (`temp`) and a speed (`padding_bonus`). Gradium has no emotion parameter: the emotion lives in the voice.
+2. Voice, temperature and speed, from the emotion (Gradium has no emotion parameter):
+   - the free-text emotion is matched against [`config/emotions.json`](config/emotions.json) (140 French and English
+     words; the whole text first, then word by word). Each word belongs to a preset of
+     [`config/presets.json`](config/presets.json), which gives the voice (French or English, from the language of the
+     text), and has an **excitement level** from 0 (very calm) to 1 (very excited). Unknown emotions get the
+     `neutral` voice and level 0.5; the request's `voiceId`, if given, replaces the voice;
+   - intensifiers in the emotion move the level (`very`, `super`, `très`… +0.15; `a bit`, `un peu`… −0.15), and a
+     `!` in the text or the emotion adds 0.1; the level stays between 0 and 1;
+   - the level sets Gradium's `temp` linearly from 0.35 (calm, steadier delivery) to 1.05 (excited, livelier and more
+     varied), and `padding_bonus` from +1.25 (slower) to −1.25 (faster); level 0.5 gives Gradium's defaults (0.7 and
+     0). Long texts are then sped up to fit in 2 s. Gradium defines `temp` as the variation between generations and
+     recommends 0.9 to 1.1 for character work; it is not an excitement setting as such, so its effect is to be judged
+     by ear.
+
+   | Emotion (examples) | Level | `temp` | `padding_bonus` |
+   | --- | --- | --- | --- |
+   | tired, bored, whisper | 0.1 | 0.42 | +1.0 |
+   | sad, calm, gentle | 0.25 | 0.53 | +0.63 |
+   | eerie, mysterious, sinister | 0.3-0.35 | 0.56-0.59 | +0.5-+0.38 |
+   | neutral, confused | 0.5 | 0.70 | 0 |
+   | joyful, playful, curious | 0.6-0.7 | 0.77-0.84 | −0.25-−0.5 |
+   | angry, surprised, scared, laughing | 0.8-0.9 | 0.91-0.98 | −0.75-−1.0 |
+   | excited, furious, hysterical | 1.0 | 1.05 | −1.25 |
+
+   Every generation is a new take (no duplicate cache): the same request twice gives two different clips.
 3. Gradium TTS (`POST /post/speech/tts`, raw 24 kHz audio with word timestamps) over one kept-alive HTTP client.
    Gradium always streams about 2 s of audio, the speech followed by silence, and sends the timestamps of every word
    but the last before the end. Once voice has been heard after the last timestamped word and 0.35 s of silence
@@ -106,15 +128,21 @@ flat, `{"error": "<code>", "message": "…"}`:
 
 ## Library
 
-144 English lines over 19 emotions and the 9 English preset voices (0.6 to 1.95 s each, about 1.1 MB), enough for a
-full game of 4 players (6 fresh clips per player per round). Edit `library/lines.json`, then:
+144 English lines over 19 emotions and the 9 English preset voices, rendered with the delivery above (temperature 0.42
+to 1.05; 0.45 to 2.0 s each, about 1.1 MB), enough for a full game of 4 players (6 fresh clips per player per round).
+The active manifest is `library/manifest.json` (`LIBRARY_MANIFEST`); `library/manifest-v1.json` is the first
+version (fixed temperature per preset), kept so the service can go back to it by setting
+`LIBRARY_MANIFEST=manifest-v1.json`. Edit `library/lines.json`, then:
 
 ```sh
-GRADIUM_API_KEY=… uv run python tools/build_library.py --provider gradium
+GRADIUM_API_KEY=… uv run python tools/build_library.py --provider gradium   # new clips for lines not yet rendered
 uv run python tools/build_library.py --check
+AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… uv run python tools/build_library.py --upload   # clips missing from S3
 ```
 
-Ids are drawn once per line and kept on rebuilds. The service uploads missing library clips to the bucket at startup.
+Ids are drawn once per line and kept on rebuilds of the same manifest. A new version of the library goes into a new
+manifest with new ids, because the CDN caches every clip forever under its id. The service also uploads missing
+library clips to the bucket at startup.
 
 ## Test
 
