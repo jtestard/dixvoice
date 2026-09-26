@@ -14,7 +14,7 @@ from audio_service import audio  # noqa: E402
 from audio_service.main import create_app  # noqa: E402
 from audio_service.settings import PACKAGE_ROOT, Settings  # noqa: E402
 
-SPEC_DIR = PACKAGE_ROOT.parent / "spec"
+SPEC_DIR = PACKAGE_ROOT.parents[1] / "spec"  # webapp/audio -> repository root
 
 
 def make_library(tmp_path: Path, n: int = 3) -> Path:

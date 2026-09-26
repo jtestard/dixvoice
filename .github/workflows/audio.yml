@@ -1,17 +1,17 @@
-name: audio-service
+name: audio
 
 on:
   push:
-    paths: ["audio-service/**", "spec/**", ".github/workflows/audio-service.yml"]
+    paths: ["webapp/audio/**", "spec/**", ".github/workflows/audio.yml"]
   pull_request:
-    paths: ["audio-service/**", "spec/**", ".github/workflows/audio-service.yml"]
+    paths: ["webapp/audio/**", "spec/**", ".github/workflows/audio.yml"]
 
 jobs:
   test:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: audio-service
+        working-directory: webapp/audio
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build the image
-        run: docker build -t dixvoice-audio audio-service
+        run: docker build -t dixvoice-audio webapp/audio
       - name: Smoke test (fake voices, local storage)
         run: |
           docker run -d --name audio -p 8080:8080 -e PROVIDER=fake -e STORAGE=local \

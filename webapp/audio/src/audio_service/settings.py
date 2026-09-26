@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-PACKAGE_ROOT = Path(__file__).resolve().parents[2]  # audio-service/
+PACKAGE_ROOT = Path(__file__).resolve().parents[2]  # webapp/audio/
 
 
 def _env(name: str, default: str) -> str:

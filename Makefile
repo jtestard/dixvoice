@@ -36,7 +36,7 @@ build-web:
 	docker buildx build --platform $(PLATFORM) -t $(WEB_IMG) $(WEB_ARGS) --load webapp/frontend
 
 build-audio:
-	docker buildx build --platform $(PLATFORM) -t $(AUDIO_IMG) --load audio-service
+	docker buildx build --platform $(PLATFORM) -t $(AUDIO_IMG) --load webapp/audio
 
 ## Push to ECR
 
@@ -58,7 +58,7 @@ push-web: ecr-login ecr-repos
 	docker buildx build --platform $(PLATFORM) -t $(WEB_IMG) $(WEB_ARGS) --push webapp/frontend
 
 push-audio: ecr-login ecr-repos
-	docker buildx build --platform $(PLATFORM) -t $(AUDIO_IMG) --push audio-service
+	docker buildx build --platform $(PLATFORM) -t $(AUDIO_IMG) --push webapp/audio
 
 ## Deploy
 

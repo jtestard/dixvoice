@@ -1,4 +1,4 @@
-# Build: docker build -t audio-service ./audio-service   (context = this folder)
+# Build: docker buildx build --platform linux/arm64 -t <image> webapp/audio
 FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim AS builder
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=0 UV_NO_DEV=1
 WORKDIR /app
@@ -20,4 +20,4 @@ RUN mkdir -p /data && chown app:app /data
 WORKDIR /app
 USER app
 EXPOSE 8080
-CMD ["audio-service"]
+CMD ["dixvoice-audio"]

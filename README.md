@@ -299,6 +299,8 @@ Planned design, to build once the first version works:
 
 ## Audio Generator Microservice
 
+Root dir: ./webapp/audio
+
 The contract is defined in JSON in [`spec/`](spec):
 
 - [`spec/audio-request.schema.json`](spec/audio-request.schema.json): JSON Schema of an AudioRequest.

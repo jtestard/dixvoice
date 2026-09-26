@@ -1,5 +1,5 @@
 [project]
-name = "audio-service"
+name = "dixvoice-audio"
 version = "0.1.0"
 description = "Dixvoice audio generator microservice: lists, returns and generates speech clips of at most 2 seconds with Gradium TTS."
 readme = "README.md"
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-audio-service = "audio_service.main:run"
+dixvoice-audio = "audio_service.main:run"
 
 [dependency-groups]
 dev = [
@@ -29,3 +29,6 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv.build-backend]
+module-name = "audio_service"

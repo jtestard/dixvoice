@@ -8,7 +8,7 @@
 - `gradium-bench/` : sonde de latence, faux serveur Gradium, script Voice Design ;
 - `audio/` : mesures d'encodage et de navigateurs ;
 - `library/` : prototype de fabrication de la bibliothèque ;
-- `hosting/proto/audio-service/` : brouillons du Dockerfile, de `railway.json` et de `fly.toml` (Railway et Fly.io **abandonnés**, voir §8.4 ; seul le Dockerfile sert encore).
+- `hosting/proto/webapp/audio/` : brouillons du Dockerfile, de `railway.json` et de `fly.toml` (Railway et Fly.io **abandonnés**, voir §8.4 ; seul le Dockerfile sert encore).
 
 > **Écarts avec le README du 26/09 (commit 24a24c6) : résolus par l'alignement sur `spec/`.**
 > - **Salons** : le README réintroduit les salons à code (4 à 8 joueurs) et une main de **6** emplacements (5 distribués + 1 son créé). Pris en compte (§10, question 4).
@@ -239,7 +239,7 @@ FastAPI les génère. **Le contrat de référence reste `spec/audio-service.open
 
 *Note (portée) : la première version du web app distribue les 6 clips depuis `GET /audio/list` et n'appelle pas encore `POST /audio` ; les sons créés (case « custom ») arrivent dans une itération suivante du web app. Le service construit quand même `POST /audio` dès J3a ; les consignes sur `POST` ci-dessous s'appliquent à cette itération.*
 
-- adresse du service dans `AUDIO_SERVICE_URL` (URL interne du cluster, par exemple `http://audio-service:8080`, à confirmer ; en local, le service fictif du backend ou `http://localhost:8080`) ;
+- adresse du service dans `AUDIO_SERVICE_URL` (URL interne du cluster, par exemple `http://dixvoice-audio.dixvoice.svc.cluster.local`, fixée dans `deploy/k8s/backend.yaml` ; en local, le service fictif du backend ou `http://localhost:8080`) ;
 - `GET /audio/list` au démarrage et à chaque partie (avec `If-None-Match` si tu veux économiser le corps) ; chaque élément est un `AudioResponse` `{id, text, emotion, voiceId, clipUrl}` ;
 - distribuer depuis cette liste moins les sons déjà utilisés du salon (README) ;
 - **servir de proxy** au front pour `GET /audio/list` et `GET /audio/{id}` : transmettre au service et ne renvoyer que `{id, clipUrl}` par son (jamais `text`, `emotion` ni `voiceId`) ; le service n'a pas de CORS, c'est Go qui gère les origines du front ;
@@ -569,10 +569,10 @@ Pas de gzip sur les MP3, qui sont déjà compressés (à vérifier dans le régl
 
 ## 8. Code, Docker, développement, déploiement, tests, documentation
 
-### 8.1 Arborescence (`./audio-service/` dans le monorepo)
+### 8.1 Arborescence (`./webapp/audio/` dans le monorepo)
 
 ```
-audio-service/
+webapp/audio/
   pyproject.toml  uv.lock  .python-version  Dockerfile  .dockerignore
   .env.example  README.md
   config/presets.json  config/emotions.json  config/blocklist.txt
@@ -605,7 +605,7 @@ Dépendances :
 - **groupe `dev`** : `pytest`, `pytest-asyncio`, `websockets` (le faux serveur l'importe) ;
 - **groupe `tools`** : `pyloudnorm`, `imageio-ffmpeg`, `pyyaml`.
 
-Dans `pyproject.toml` : `[project.scripts] audio-service = "audio_service.main:run"` **et** une section `[build-system]` (`uv_build`, déjà dans le prototype `SCRATCH/wf/hosting/proto/audio-service/pyproject.toml`) : sans elle, le script `audio-service` n'est pas installé et le `CMD` du Dockerfile échoue.
+Dans `pyproject.toml` : `[project.scripts] dixvoice-audio = "audio_service.main:run"` **et** une section `[build-system]` (`uv_build`, déjà dans le prototype `SCRATCH/wf/hosting/proto/audio-service/pyproject.toml`) : sans elle, le script `dixvoice-audio` n'est pas installé et le `CMD` du Dockerfile échoue.
 
 **Pièges FastAPI** : déclarer `/audio/list` **avant** `/audio/{id}` (sinon « list » est pris pour un id) ; `If-None-Match`/304 se code à la main pour `/audio/list` ; enregistrer des gestionnaires pour `StarletteHTTPException` et `RequestValidationError` qui renvoient `{"error": "<code>", "message": "…"}` (à plat), avec **400** au lieu du 422 par défaut ; modèle Pydantic de la requête avec `extra="forbid"` (le contrat refuse les champs en trop) ; `status_code=201` sur la route `POST`.
 
@@ -613,7 +613,7 @@ Dans `pyproject.toml` : `[project.scripts] audio-service = "audio_service.main:r
 
 ### 8.2 Dockerfile
 
-Il part de `SCRATCH/wf/hosting/proto/audio-service/Dockerfile`, jamais construit faute de Docker ici :
+Il part de `SCRATCH/wf/hosting/proto/webapp/audio/Dockerfile`, jamais construit faute de Docker ici :
 
 ```dockerfile
 FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim AS builder
@@ -634,7 +634,7 @@ ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 HOST="" PORT=8080 CLIPS_DIR=/
 WORKDIR /app
 USER app
 EXPOSE 8080
-CMD ["audio-service"]
+CMD ["dixvoice-audio"]
 ```
 
 - Le groupe `tools` n'est pas installé : il faut `UV_NO_DEV=1` et le déclarer hors des groupes par défaut.
@@ -650,14 +650,14 @@ CMD ["audio-service"]
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env          # ou ouvrir un nouveau terminal ; puis uv --version
 uv python install 3.12
-cd audio-service && uv sync
+cd webapp/audio && uv sync
 (mkdir -p /tmp/cdn && cd /tmp/cdn && python3 -m http.server 8081) &   # faux CDN local
-PROVIDER=fake CDN=local LOCAL_CDN_DIR=/tmp/cdn CDN_PUBLIC_URL=http://localhost:8081 uv run audio-service   # http://localhost:8080/docs
+PROVIDER=fake CDN=local LOCAL_CDN_DIR=/tmp/cdn CDN_PUBLIC_URL=http://localhost:8081 uv run dixvoice-audio   # http://localhost:8080/docs
 uv run pytest
 # avec la vraie clé (fichier dans secret/, ignoré par git) :
-set -a; source ../secret/gradium.env; set +a; PROVIDER=gradium uv run audio-service
+set -a; source ../secret/gradium.env; set +a; PROVIDER=gradium uv run dixvoice-audio
 # client réel contre le faux Gradium :
-uv run python tests/mock_gradium.py &  PROVIDER=gradium GRADIUM_BASE_URL=http://127.0.0.1:18766/api uv run audio-service
+uv run python tests/mock_gradium.py &  PROVIDER=gradium GRADIUM_BASE_URL=http://127.0.0.1:18766/api uv run dixvoice-audio
 ```
 
 - **Coéquipiers** : côté Go, `AUDIO_SERVICE_URL=http://localhost:8080` avec `PROVIDER=fake` et `CDN=local` (latence réglable avec `FAKE_LATENCY_MS=250`). Ni clé, ni crédit, ni jeton. Le backend a aussi son propre service audio fictif (liste figée conforme au schéma et quelques MP3, README) : le vrai service n'est nécessaire que pour tester la génération.
@@ -668,8 +668,8 @@ uv run python tests/mock_gradium.py &  PROVIDER=gradium GRADIUM_BASE_URL=http://
 
 Le backend Go tourne sur le cluster Kubernetes gcast (README, « Deployment ») ; le service audio tourne **sur le même cluster**, ce qui garde un réseau privé entre Go et le service et évite tout jeton.
 
-- **Deployment `audio-service`** avec exactement **1 réplica** : la liste des clips et le cache des doublons sont en mémoire, et uvicorn tourne avec un seul worker (§2). Même raisonnement que pour Go.
-- **Service Kubernetes** (ClusterIP) `audio-service`, port 8080, **sans Ingress public**. Go l'appelle par `AUDIO_SERVICE_URL=http://audio-service:8080` (nom exact et namespace à confirmer) et sert lui-même de proxy au front pour les `GET` : le service n'est jamais exposé hors du cluster.
+- **Deployment `dixvoice-audio`** avec exactement **1 réplica** : la liste des clips et le cache des doublons sont en mémoire, et uvicorn tourne avec un seul worker (§2). Même raisonnement que pour Go.
+- **Service Kubernetes** (ClusterIP) `dixvoice-audio`, port 80 vers 8080, **sans Ingress public**. Go l'appelle par `AUDIO_SERVICE_URL=http://dixvoice-audio.dixvoice.svc.cluster.local` et sert lui-même de proxy au front pour les `GET` : le service n'est jamais exposé hors du cluster.
 - **NetworkPolicy** (proposée) : seuls les pods du backend Go joignent le port 8080. **Sortie réseau** autorisée vers `api.gradium.ai:443` et vers le CDN ; à vérifier dès J1 depuis le pod.
 - **Sondes** : readiness et liveness sur `GET /healthz` (qui n'appelle ni Gradium ni le CDN) ; `terminationGracePeriodSeconds` ≥ 10, pour laisser finir une génération en cours (`timeout_graceful_shutdown=8`, §8.2).
 - **Secret Kubernetes** : `GRADIUM_API_KEY` et les identifiants de dépôt sur le CDN.
@@ -694,7 +694,7 @@ Le backend Go tourne sur le cluster Kubernetes gcast (README, « Deployment ») 
 
 ### 8.6 Documentation pour le jury
 
-`audio-service/README.md` contient :
+`webapp/audio/README.md` contient :
 - le rôle du service et le schéma du §1 ;
 - 3 commandes d'installation ;
 - le tableau des variables d'environnement ;
@@ -771,7 +771,7 @@ Ces chiffres vont dans le README et le pitch. p50 et p95 : la valeur sous laquel
 3. **Forme de `GET /audio/list` ?** **Tranché** (`spec/`) : tableau nu d'`AudioResponse` `{id, text, emotion, voiceId, clipUrl}`, ids en UUID v4, sans titre ni tags, bibliothèque et sons créés mêlés, triés par id.
 4. **Un son créé remplace-t-il une carte, ou la main passe-t-elle à 6 ?** **Tranché** (README) : main de 6, 5 cartes distribuées + 1 case « custom » facultative.
 5. **Où tournent Go et le service ?** **Tranché** : cluster Kubernetes gcast, tous les deux, réseau privé du cluster (§8.4). Restent à décider : namespace, registre d'images, nom du Service.
-6. **Dossier du service ?** Défaut : `./audio-service` à la racine, à côté de `./webapp`, et `.env`/`*.env` ajoutés au `.gitignore`.
+6. **Dossier du service ?** Défaut : `./webapp/audio` à la racine, à côté de `./webapp`, et `.env`/`*.env` ajoutés au `.gitignore`.
 7. **Quel CDN, et avec quels identifiants ?** Défaut : à choisir par l'équipe (README : « CDN to be decided »). Exigences : dépôt par API depuis le pod, `Range`/206, `Cache-Control` réglable au dépôt, **pas de `Last-Modified` qui trahisse la date de dépôt** (§3), CORS réglable si le front passe un jour par `fetch()`.
 8. **Émotion → voix Gradium : comment traduire le texte libre ?** Défaut : table interne `config/emotions.json` (émotions courantes FR/EN) vers une dizaine de préréglages, préréglage par défaut sinon, langue du texte devinée pour choisir la voix FR ou EN (§4.1). Détail interne au service ; seul le résultat est exposé dans `voiceId`. À valider après écoute.
 9. **Longueur du texte ?** **Tranché** : 100 caractères au maximum (contrat, appliqué par le front ; par le service dans une version ultérieure). Défaut pour le reste : compteur dans le front, 25 conseillés ; table de débit recalibrée après J2.
