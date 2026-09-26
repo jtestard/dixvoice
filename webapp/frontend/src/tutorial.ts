@@ -4,6 +4,8 @@ export type TutorialScreen = 'home' | 'lobby' | 'game' | 'endGame'
 
 export const TARGET_SCORE = 10
 
+const gameOver = (state: GameState) => state.players.some((p) => p.score >= (state.room.targetScore || TARGET_SCORE))
+
 /** Text with the named players kept as objects, so the UI can render them with their bot badge. */
 export type RichText = (string | Player)[]
 
@@ -93,7 +95,7 @@ export function roleBanner(state: GameState | null): RoleBanner | null {
       return {
         role,
         headline: isStoryteller ? [`Round ${round.number} is over. You were the STORYTELLER.`] : [`Round ${round.number} is over. `, st, ' was the storyteller.'],
-        detail: 'See who found the clip and the points won, then press Next round.',
+        detail: `See who found the clip and the points won, then press ${gameOver(state) ? 'See final scores' : 'Next round'}.`,
       }
   }
 }
@@ -324,7 +326,9 @@ export function tutorialCue(state: GameState | null, screen: TutorialScreen): Tu
       return {
         key: moment,
         label: 'STEP 4/4',
-        body: `You score +${points} this round. Press Next round to keep going: first to ${TARGET_SCORE} wins.`,
+        body: gameOver(state)
+          ? `You score +${points} this round. Someone reached ${TARGET_SCORE}: press See final scores.`
+          : `You score +${points} this round. Press Next round to keep going: first to ${TARGET_SCORE} wins.`,
       }
     }
   }

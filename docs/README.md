@@ -132,7 +132,7 @@ when the tutorial is off only the short first sentence. Companions in it are mar
 | 2/4 Submit, waiting | Waiting for Ben and Robo Chloé to pick a clip. *Storyteller: Every player is matching your clue with one clip from their hand. Player: Your clip is in. Once everyone has picked, you'll look for Ana's clip among all of them.* |
 | 3/4 Vote, to do | You're a PLAYER. Ana is the storyteller. *Find Ana's clip among everyone's. You can't vote for your own.* |
 | 3/4 Vote, waiting | Waiting for Ada and Robo Ben to vote. *Storyteller: You score 3 only if some players find your clip, but not all. Player: Your vote is in. You score 3 if you found Ana's clip, plus 1 per vote on yours.* |
-| 4/4 Reveal | Round 2 is over. You were the STORYTELLER. / Round 2 is over. Ana was the storyteller. *See who found the clip and the points won, then press Next round.* |
+| 4/4 Reveal | Round 2 is over. You were the STORYTELLER. / Round 2 is over. Ana was the storyteller. *See who found the clip and the points won, then press Next round (or See final scores once someone has reached 10).* |
 
 Names lists read "Ada", "Ada and Ben", "Ada, Ben and Chloé", then "Ada, Ben, Chloé and 2 others".
 

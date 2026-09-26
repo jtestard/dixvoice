@@ -8,6 +8,8 @@ import { TOUR_KEY } from '../useTour'
 import type { GameState, Round } from '../types'
 import { PLAYERS, REVEAL_ROUND, TABLE, finishedState, lobbyState, playingState } from './fixtures'
 
+const withScore = (s: GameState, id: string, score: number): GameState => ({ ...s, players: s.players.map((p) => (p.playerId === id ? { ...p, score } : p)) })
+
 describe('tutorialCue', () => {
   it('chooses every screen and role-specific moment', () => {
     const cases: { screen: TutorialScreen; state: GameState | null; label: string; body: string }[] = [
@@ -23,6 +25,7 @@ describe('tutorialCue', () => {
       { screen: 'game', state: playingState('p4', { phase: 'vote', yourVote: 't1' }), label: 'STEP 3/4', body: 'Waiting for 3 players to vote.' },
       { screen: 'game', state: playingState('p4', REVEAL_ROUND), label: 'STEP 4/4', body: 'You score +4 this round. Press Next round to keep going: first to 10 wins.' },
       { screen: 'game', state: playingState('p1', REVEAL_ROUND), label: 'STEP 4/4', body: 'You score +3 this round. Press Next round to keep going: first to 10 wins.' },
+      { screen: 'game', state: withScore(playingState('p1', REVEAL_ROUND), 'p3', 11), label: 'STEP 4/4', body: 'You score +3 this round. Someone reached 10: press See final scores.' },
     ]
     for (const { screen: currentScreen, state, label, body } of cases) {
       expect(tutorialCue(state, currentScreen)).toEqual(expect.objectContaining({ label, body }))
