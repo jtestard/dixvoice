@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jtestard/dixvoice/webapp/backend/internal/audio"
+	"github.com/jtestard/dixvoice/webapp/backend/internal/companion"
 	"github.com/jtestard/dixvoice/webapp/backend/internal/game"
 	"github.com/jtestard/dixvoice/webapp/backend/internal/server"
 )
@@ -28,9 +29,11 @@ func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	port := env("PORT", "8080")
 	audioURL := env("AUDIO_SERVICE_URL", "http://localhost:8081")
+	companionURL := os.Getenv("COMPANION_SERVICE_URL")
 	origins := strings.Split(env("ALLOWED_ORIGINS", "http://localhost:5173"), ",")
 
-	srv := server.New(server.Config{AllowedOrigins: origins}, game.NewManager(), audio.NewClient(audioURL), log)
+	srv := server.New(server.Config{AllowedOrigins: origins}, game.NewManager(), audio.NewClient(audioURL),
+		companion.NewClient(companionURL), log)
 	httpSrv := &http.Server{
 		Addr:              ":" + port,
 		Handler:           srv.Handler(),
@@ -46,7 +49,7 @@ func main() {
 		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 
-	log.Info("listening", "port", port, "audioServiceUrl", audioURL, "allowedOrigins", origins)
+	log.Info("listening", "port", port, "audioServiceUrl", audioURL, "companionServiceUrl", companionURL, "allowedOrigins", origins)
 	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Error("server stopped", "err", err)
 		os.Exit(1)

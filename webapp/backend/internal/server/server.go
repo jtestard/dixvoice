@@ -15,35 +15,42 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/jtestard/dixvoice/webapp/backend/internal/audio"
+	"github.com/jtestard/dixvoice/webapp/backend/internal/companion"
 	"github.com/jtestard/dixvoice/webapp/backend/internal/game"
 )
 
 type Config struct {
-	// AllowedOrigins are the origins accepted for CORS and WebSocket
-	// upgrades, e.g. "http://localhost:5173".
+	// AllowedOrigins are the browser origins accepted for CORS and WebSocket
+	// upgrades, e.g. "http://localhost:5173". Requests without an Origin
+	// header (non-browser clients) are always accepted.
 	AllowedOrigins []string
 }
 
 type Server struct {
-	cfg     Config
-	log     *slog.Logger
-	rooms   *game.Manager
-	audio   *audio.Client
-	origins map[string]bool
-	hosts   []string
+	cfg        Config
+	log        *slog.Logger
+	rooms      *game.Manager
+	audio      *audio.Client
+	companions *companion.Client
+	origins    map[string]bool
+	hosts      []string
 
 	mu    sync.Mutex
 	conns map[*game.Room]map[string]*client // room -> playerID -> connection
 }
 
-func New(cfg Config, rooms *game.Manager, audioClient *audio.Client, log *slog.Logger) *Server {
+func New(cfg Config, rooms *game.Manager, audioClient *audio.Client, companions *companion.Client, log *slog.Logger) *Server {
+	if companions == nil {
+		companions = companion.NewClient("")
+	}
 	s := &Server{
-		cfg:     cfg,
-		log:     log,
-		rooms:   rooms,
-		audio:   audioClient,
-		origins: map[string]bool{},
-		conns:   map[*game.Room]map[string]*client{},
+		cfg:        cfg,
+		log:        log,
+		rooms:      rooms,
+		audio:      audioClient,
+		companions: companions,
+		origins:    map[string]bool{},
+		conns:      map[*game.Room]map[string]*client{},
 	}
 	for _, o := range cfg.AllowedOrigins {
 		o = strings.TrimRight(strings.TrimSpace(o), "/")
@@ -122,8 +129,9 @@ func writeGameError(w http.ResponseWriter, err error) {
 	writeJSON(w, http.StatusInternalServerError, errorBody{Code: "internal", Message: err.Error()})
 }
 
-type nicknameBody struct {
-	Nickname string `json:"nickname"`
+type joinBody struct {
+	Nickname  string `json:"nickname"`
+	Companion bool   `json:"companion"`
 }
 
 type seatResponse struct {
@@ -132,21 +140,21 @@ type seatResponse struct {
 	Token    string `json:"token"`
 }
 
-func readNickname(w http.ResponseWriter, r *http.Request) (string, bool) {
-	var body nicknameBody
+func readJoinBody(w http.ResponseWriter, r *http.Request) (joinBody, bool) {
+	var body joinBody
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorBody{Code: game.CodeInvalidNickname, Message: "body must be {\"nickname\": ...}"})
-		return "", false
+		return body, false
 	}
-	return body.Nickname, true
+	return body, true
 }
 
 func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
-	nickname, ok := readNickname(w, r)
+	body, ok := readJoinBody(w, r)
 	if !ok {
 		return
 	}
-	room, p, err := s.rooms.CreateRoom(nickname)
+	room, p, err := s.rooms.CreateRoom(body.Nickname)
 	if err != nil {
 		writeGameError(w, err)
 		return
@@ -156,12 +164,12 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleJoinRoom(w http.ResponseWriter, r *http.Request) {
-	nickname, ok := readNickname(w, r)
+	body, ok := readJoinBody(w, r)
 	if !ok {
 		return
 	}
 	code := strings.ToUpper(strings.TrimSpace(r.PathValue("code")))
-	room, p, err := s.rooms.JoinRoom(code, nickname)
+	room, p, err := s.rooms.JoinRoom(code, body.Nickname, body.Companion)
 	if err != nil {
 		writeGameError(w, err)
 		return
@@ -177,11 +185,10 @@ func (s *Server) handleAudioList(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, errorBody{Code: "audio_unavailable", Message: "the audio service is unavailable"})
 		return
 	}
-	out := make([]audio.Public, len(list))
-	for i, a := range list {
-		out[i] = a.Public()
+	if list == nil {
+		list = []audio.Response{}
 	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, list)
 }
 
 func (s *Server) handleAudioGet(w http.ResponseWriter, r *http.Request) {
@@ -193,7 +200,7 @@ func (s *Server) handleAudioGet(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("audio get", "err", err)
 		writeJSON(w, http.StatusBadGateway, errorBody{Code: "audio_unavailable", Message: "the audio service is unavailable"})
 	default:
-		writeJSON(w, http.StatusOK, a.Public())
+		writeJSON(w, http.StatusOK, a)
 	}
 }
 
@@ -207,7 +214,7 @@ func (s *Server) pool(ctx context.Context) ([]game.Clip, error) {
 	}
 	clips := make([]game.Clip, len(list))
 	for i, a := range list {
-		clips[i] = game.Clip{ID: a.ID, URL: a.ClipURL}
+		clips[i] = game.Clip{ID: a.ID, URL: a.ClipURL, Text: a.Text, Emotion: a.Emotion, VoiceID: a.VoiceID}
 	}
 	return clips, nil
 }
@@ -232,9 +239,10 @@ func (c *client) send(v any) error {
 }
 
 type clientMessage struct {
-	Type   string `json:"type"`
-	ClipID string `json:"clipId"`
-	Clue   string `json:"clue"`
+	Type     string `json:"type"`
+	ClipID   string `json:"clipId"`
+	Clue     string `json:"clue"`
+	PlayerID string `json:"playerId"`
 }
 
 type wsError struct {
@@ -426,6 +434,24 @@ func (s *Server) handleMessage(ctx context.Context, seat game.Seat, c *client, m
 			}
 			return true
 		}
+	case "add_companion":
+		err = s.addCompanion(ctx, room)
+		if err == nil {
+			// The companion joins over HTTP on its own; that join broadcasts.
+			return false
+		}
+	case "remove_companion":
+		err = s.rooms.RemoveCompanion(room, msg.PlayerID)
+		if err == nil {
+			s.mu.Lock()
+			removed := s.conns[room][msg.PlayerID]
+			delete(s.conns[room], msg.PlayerID)
+			s.mu.Unlock()
+			if removed != nil {
+				removed.eject("removed")
+			}
+			s.log.Info("companion removed", "code", room.Code, "player", msg.PlayerID)
+		}
 	case "submit_clue":
 		err = room.SubmitClue(pid, msg.ClipID, msg.Clue)
 	case "submit_clip":
@@ -453,4 +479,18 @@ func (s *Server) handleMessage(ctx context.Context, seat game.Seat, c *client, m
 	}
 	s.broadcast(room)
 	return false
+}
+
+// addCompanion asks the companion service to seat one companion in the room.
+// The seat is not reserved: the service's own join is subject to the usual
+// room checks.
+func (s *Server) addCompanion(ctx context.Context, room *game.Room) error {
+	if err := room.CanAddCompanion(); err != nil {
+		return err
+	}
+	if err := s.companions.Add(ctx, room.Code); err != nil {
+		s.log.Warn("add companion failed", "code", room.Code, "err", err)
+		return &game.Error{Code: game.CodeCompanionUnavailable, Message: "AI companions are unavailable right now"}
+	}
+	return nil
 }

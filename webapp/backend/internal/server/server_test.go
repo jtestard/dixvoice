@@ -16,6 +16,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/jtestard/dixvoice/webapp/backend/internal/audio"
+	"github.com/jtestard/dixvoice/webapp/backend/internal/companion"
 	"github.com/jtestard/dixvoice/webapp/backend/internal/game"
 	"github.com/jtestard/dixvoice/webapp/backend/internal/mockaudio"
 )
@@ -29,11 +30,17 @@ type env struct {
 }
 
 func newEnv(t *testing.T) *env {
+	return newEnvWithCompanions(t, "")
+}
+
+// newEnvWithCompanions starts the backend with COMPANION_SERVICE_URL set to
+// companionURL ("" for unset).
+func newEnvWithCompanions(t *testing.T, companionURL string) *env {
 	t.Helper()
 	mock := httptest.NewServer((&mockaudio.Service{Count: 300}).Handler())
 	t.Cleanup(mock.Close)
 	srv := New(Config{AllowedOrigins: []string{origin}}, game.NewManager(), audio.NewClient(mock.URL),
-		slog.New(slog.NewTextHandler(io.Discard, nil)))
+		companion.NewClient(companionURL), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	backend := httptest.NewServer(srv.Handler())
 	t.Cleanup(backend.Close)
 	return &env{t: t, backend: backend, mock: mock}
@@ -41,9 +48,17 @@ func newEnv(t *testing.T) *env {
 
 func (e *env) post(path string, body any) (int, map[string]any) {
 	e.t.Helper()
+	return e.postFrom(origin, path, body)
+}
+
+// postFrom posts with the given Origin header ("" sends none).
+func (e *env) postFrom(from, path string, body any) (int, map[string]any) {
+	e.t.Helper()
 	data, _ := json.Marshal(body)
 	req, _ := http.NewRequest(http.MethodPost, e.backend.URL+path, bytes.NewReader(data))
-	req.Header.Set("Origin", origin)
+	if from != "" {
+		req.Header.Set("Origin", from)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -65,10 +80,21 @@ type player struct {
 
 func (e *env) connect(id, token string) *player {
 	e.t.Helper()
+	return e.connectFrom(origin, id, token)
+}
+
+// connectFrom opens the WebSocket with the given Origin header ("" sends
+// none, like a non-browser client).
+func (e *env) connectFrom(from, id, token string) *player {
+	e.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	wsURL := strings.Replace(e.backend.URL, "http://", "ws://", 1) + "/ws?token=" + token
-	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {origin}}})
+	hdr := http.Header{}
+	if from != "" {
+		hdr.Set("Origin", from)
+	}
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: hdr})
 	if err != nil {
 		e.t.Fatalf("dial: %v", err)
 	}
@@ -117,11 +143,23 @@ func (p *player) expectState() game.State {
 	if st.You.PlayerID != p.id {
 		p.t.Fatalf("%s got a snapshot for %s", p.id, st.You.PlayerID)
 	}
-	if bytes.Contains(data, []byte(`"text"`)) || bytes.Contains(data, []byte(`"voiceId"`)) || bytes.Contains(data, []byte(`"emotion"`)) {
-		p.t.Fatalf("snapshot leaks audio metadata: %s", data)
+	for _, c := range append(append([]game.Clip{}, st.You.Hand...), tableOf(st)...) {
+		if c.ID == "" || c.URL == "" || c.Text == "" || c.Emotion == "" || c.VoiceID == "" {
+			p.t.Fatalf("clip is not a full AudioResponse: %+v", c)
+		}
+	}
+	if bytes.Contains(data, []byte(`"id"`)) {
+		p.t.Fatalf("snapshot clips must use clipId, not id: %s", data)
 	}
 	p.state = st
 	return st
+}
+
+func tableOf(st game.State) []game.Clip {
+	if st.Round == nil {
+		return nil
+	}
+	return st.Round.Table
 }
 
 func (p *player) expectError(code string) {
@@ -205,23 +243,31 @@ func TestHTTPEndpoints(t *testing.T) {
 		t.Fatal("cors allowed an unknown origin")
 	}
 
-	// Audio proxy: only id and clipUrl.
+	// Audio proxy: the audio service's AudioResponse, unchanged.
 	resp, _ = http.Get(e.backend.URL + "/audio/list")
 	data, _ := io.ReadAll(resp.Body)
 	var list []map[string]any
 	if err := json.Unmarshal(data, &list); err != nil || len(list) != 300 {
 		t.Fatalf("audio list: %v %d", err, len(list))
 	}
-	for k := range list[0] {
-		if k != "id" && k != "clipUrl" {
-			t.Fatalf("audio list leaks %q", k)
+	upstream, _ := http.Get(e.mock.URL + "/audio/list")
+	upstreamData, _ := io.ReadAll(upstream.Body)
+	if !bytes.Equal(bytes.TrimSpace(data), bytes.TrimSpace(upstreamData)) {
+		t.Fatalf("audio list differs from the audio service's:\n%s\n%s", data[:200], upstreamData[:200])
+	}
+	for _, k := range []string{"id", "clipUrl", "text", "emotion", "voiceId"} {
+		if v, ok := list[0][k].(string); !ok || v == "" {
+			t.Fatalf("audio list entry lacks %q: %v", k, list[0])
 		}
+	}
+	if len(list[0]) != 5 {
+		t.Fatalf("audio list entry has unexpected fields: %v", list[0])
 	}
 	resp, _ = http.Get(e.backend.URL + "/audio/" + list[0]["id"].(string))
 	var one map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&one)
-	if resp.StatusCode != http.StatusOK || one["id"] != list[0]["id"] || one["clipUrl"] != list[0]["clipUrl"] || len(one) != 2 {
-		t.Fatalf("audio get: %d %v", resp.StatusCode, one)
+	if resp.StatusCode != http.StatusOK || fmt.Sprint(one) != fmt.Sprint(list[0]) {
+		t.Fatalf("audio get: %d %v want %v", resp.StatusCode, one, list[0])
 	}
 	resp, _ = http.Get(e.backend.URL + "/audio/00000000-0000-4000-8000-000000000000")
 	if resp.StatusCode != http.StatusNotFound {
@@ -493,7 +539,7 @@ func TestProductionOriginAllowed(t *testing.T) {
 	mock := httptest.NewServer((&mockaudio.Service{Count: 30}).Handler())
 	t.Cleanup(mock.Close)
 	srv := New(Config{AllowedOrigins: []string{prod, origin}}, game.NewManager(), audio.NewClient(mock.URL),
-		slog.New(slog.NewTextHandler(io.Discard, nil)))
+		nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	backend := httptest.NewServer(srv.Handler())
 	t.Cleanup(backend.Close)
 
@@ -529,4 +575,151 @@ func TestWebSocketOriginCheck(t *testing.T) {
 	if err == nil || resp == nil || resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("expected 403 for a foreign origin, got %v %v", err, resp)
 	}
+
+	// No Origin header (non-browser client such as the companion service):
+	// accepted, on HTTP and on the WebSocket.
+	code := body["roomCode"].(string)
+	status, seat := e.postFrom("", "/rooms/"+code+"/join", map[string]any{"nickname": "Robo Ada", "companion": true})
+	if status != http.StatusOK {
+		t.Fatalf("join without Origin: %d %v", status, seat)
+	}
+	bot := e.connectFrom("", seat["playerId"].(string), seat["token"].(string))
+	if len(bot.state.Players) != 2 {
+		t.Fatalf("bad state without Origin: %+v", bot.state.Players)
+	}
+}
+
+// fakeCompanionService stands in for the companion service: on
+// POST /companions it joins the room over the backend's HTTP API with
+// "companion": true and opens the WebSocket without an Origin header, like
+// the real service.
+type fakeCompanionService struct {
+	t      *testing.T
+	e      *env
+	fail   bool
+	calls  int
+	bodies []string
+	joined chan *player
+}
+
+func (f *fakeCompanionService) handler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/companions" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		f.calls++
+		var body struct {
+			RoomCode string `json:"roomCode"`
+		}
+		data, _ := io.ReadAll(r.Body)
+		f.bodies = append(f.bodies, string(bytes.TrimSpace(data)))
+		_ = json.Unmarshal(data, &body)
+		if f.fail {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+		go func() {
+			status, seat := f.e.postFrom("", "/rooms/"+body.RoomCode+"/join", map[string]any{"nickname": "Robo Ada", "companion": true})
+			if status != http.StatusOK {
+				f.t.Errorf("companion join: %d %v", status, seat)
+				f.joined <- nil
+				return
+			}
+			f.joined <- f.e.connectFrom("", seat["playerId"].(string), seat["token"].(string))
+		}()
+	})
+}
+
+func TestCompanions(t *testing.T) {
+	fake := &fakeCompanionService{t: t, joined: make(chan *player, 1)}
+	fakeSrv := httptest.NewServer(fake.handler())
+	t.Cleanup(fakeSrv.Close)
+	e := newEnvWithCompanions(t, fakeSrv.URL)
+	fake.e = e
+	code, ps := setupRoom(t, e, 3)
+
+	// add_companion: the service is called with the room code, the
+	// companion joins (state to everyone: join, then connect) with
+	// isCompanion: true.
+	ps[0].send(map[string]any{"type": "add_companion"})
+	bot := <-fake.joined
+	if bot == nil {
+		t.FailNow()
+	}
+	if fake.calls != 1 || fake.bodies[0] != `{"roomCode":"`+code+`"}` {
+		t.Fatalf("companion service calls %d bodies %v", fake.calls, fake.bodies)
+	}
+	all(ps, func(p *player) { p.expectState(); p.expectState() })
+	for _, s := range ps[0].state.Players {
+		if s.IsCompanion != (s.PlayerID == bot.id) || (s.PlayerID == bot.id && (s.Nickname != "Robo Ada" || !s.Connected)) {
+			t.Fatalf("bad players after add_companion: %+v", ps[0].state.Players)
+		}
+	}
+	if len(ps[0].state.Players) != 4 {
+		t.Fatalf("expected 4 players, got %d", len(ps[0].state.Players))
+	}
+
+	// remove_companion: wrong target, then success. The companion's socket
+	// gets room_closed (removed) and everyone else a state.
+	ps[1].send(map[string]any{"type": "remove_companion", "playerId": ps[0].id})
+	ps[1].expectError(game.CodeNotACompanion)
+	ps[1].send(map[string]any{"type": "remove_companion", "playerId": "p99"})
+	ps[1].expectError(game.CodePlayerNotFound)
+	ps[1].send(map[string]any{"type": "remove_companion", "playerId": bot.id})
+	bot.expectClosed("removed")
+	all(ps, func(p *player) { p.expectState() })
+	if len(ps[2].state.Players) != 3 {
+		t.Fatalf("companion still in room: %+v", ps[2].state.Players)
+	}
+	if resp, _ := http.Get(e.backend.URL + "/ws?token=" + bot.token); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("removed companion token still valid: %d", resp.StatusCode)
+	}
+
+	// Companions count toward the 4 player minimum: with one back, the
+	// game starts, and neither message is allowed while playing.
+	ps[0].send(map[string]any{"type": "add_companion"})
+	bot = <-fake.joined
+	all(ps, func(p *player) { p.expectState(); p.expectState() })
+	ps[0].send(map[string]any{"type": "start_game"})
+	all(append(ps, bot), func(p *player) { p.expectState() })
+	if ps[0].state.Room.Status != game.StatusPlaying || len(bot.state.You.Hand) != game.HandSize {
+		t.Fatalf("game did not start with a companion: %+v", ps[0].state.Room)
+	}
+	ps[0].send(map[string]any{"type": "add_companion"})
+	ps[0].expectError(game.CodeInvalidPhase)
+	ps[0].send(map[string]any{"type": "remove_companion", "playerId": bot.id})
+	ps[0].expectError(game.CodeInvalidPhase)
+	if fake.calls != 2 {
+		t.Fatalf("service called while playing: %d", fake.calls)
+	}
+
+	// Service failure -> companion_unavailable, nothing else happens.
+	ps[0].send(map[string]any{"type": "stop_game"})
+	all(append(ps, bot), func(p *player) { p.expectClosed("stopped") })
+	_, ps = setupRoom(t, e, 1)
+	fake.fail = true
+	ps[0].send(map[string]any{"type": "add_companion"})
+	ps[0].expectError(game.CodeCompanionUnavailable)
+	if fake.calls != 3 {
+		t.Fatalf("service not called: %d", fake.calls)
+	}
+	fake.fail = false
+
+	// Room full -> room_full, the service is not called.
+	code, ps = setupRoom(t, e, 8)
+	ps[0].send(map[string]any{"type": "add_companion"})
+	ps[0].expectError(game.CodeRoomFull)
+	if fake.calls != 3 {
+		t.Fatalf("service called for a full room: %d", fake.calls)
+	}
+	_ = code
+}
+
+func TestAddCompanionWithoutService(t *testing.T) {
+	e := newEnv(t) // COMPANION_SERVICE_URL unset
+	_, ps := setupRoom(t, e, 1)
+	ps[0].send(map[string]any{"type": "add_companion"})
+	ps[0].expectError(game.CodeCompanionUnavailable)
 }
