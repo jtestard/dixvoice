@@ -261,15 +261,20 @@ files in [`deploy/k8s/`](deploy/k8s) (no Terraform for now):
 - The web image is built with `--build-arg VITE_BACKEND_URL=https://dixvoice.api.gcast.app`. The same frontend can
   still be packaged as a zip for itch.io.
 
-To deploy (needs docker buildx, the aws CLI logged in to the gcast AWS account, and kubectl on `gcast-eks`):
+To build and deploy, use the [`Makefile`](Makefile) (needs docker buildx, the aws CLI logged in to the gcast AWS
+account, and kubectl with the `gcast-eks` context):
 
 ```bash
-deploy/deploy.sh          # both apps
-deploy/deploy.sh backend  # or web
+make deploy           # build, push and roll out both apps
+make deploy-backend   # or deploy-web
+make build            # build both images locally, without pushing
+make status           # pods, ingresses and certificate
+make logs-backend     # or logs-web
+make cdn              # create/update the clip bucket and CDN
 ```
 
-The script creates the ECR repositories if needed, builds and pushes the `latest` images, applies the manifests and
-restarts the deployments.
+Deploying creates the ECR repositories if needed, builds and pushes the `latest` arm64 images, applies the manifests
+and restarts the deployments.
 
 ## Later iterations
 
