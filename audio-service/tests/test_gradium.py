@@ -8,7 +8,7 @@ import httpx
 import numpy as np
 import pytest
 
-from audio_service.providers.base import ProviderError, ProviderUnavailable
+from audio_service.providers.base import ProviderError, ProviderUnavailable, UnknownVoice
 from audio_service.providers.gradium import GradiumProvider
 
 
@@ -81,3 +81,16 @@ def test_no_key_means_unavailable():
     asyncio.run(p.start())
     with pytest.raises(ProviderUnavailable):
         asyncio.run(p.synthesize("hi", "voice", 0.7, 0))
+
+
+def test_unknown_voice_is_not_retried():
+    calls = []
+
+    def route(request):
+        calls.append(1)
+        return httpx.Response(400, json={"detail": "Embeddings not found for nope, 7e9db3ce@5 (7e9db3ce@5)"})
+
+    p = make(credits_or(route))
+    with pytest.raises(UnknownVoice):
+        asyncio.run(p.synthesize("hi", "nope", 0.7, 0))
+    assert len(calls) == 1

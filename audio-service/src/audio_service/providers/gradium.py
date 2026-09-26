@@ -15,7 +15,7 @@ import httpx
 import numpy as np
 
 from ..audio import Word
-from .base import ProviderError, ProviderTimeout, ProviderUnavailable, Synthesis
+from .base import ProviderError, ProviderTimeout, ProviderUnavailable, Synthesis, UnknownVoice
 
 log = logging.getLogger("audio_service.gradium")
 
@@ -29,6 +29,8 @@ STICKY_SECONDS = 30 * 60
 
 def _classify(message: str, status: int | None = None) -> ProviderError:
     lowered = message.lower()
+    if "embeddings not found" in lowered or ("voice" in lowered and "not found" in lowered):
+        return UnknownVoice(message)  # measured 2026-09-26: HTTP 400 {"detail": "Embeddings not found for <id>, ..."}
     if status in (401, 402, 403) or any(h in lowered for h in UNAVAILABLE_HINTS):
         return ProviderUnavailable(message)
     return ProviderError(message)
@@ -95,7 +97,7 @@ class GradiumProvider:
         model = self._model_to_use()
         try:
             result = await self._synthesize_once(text, voice_id, temp, padding_bonus, model)
-        except (ProviderUnavailable, ProviderTimeout):
+        except (ProviderUnavailable, ProviderTimeout, UnknownVoice):
             raise
         except ProviderError as exc:
             if model == self.fallback_model:

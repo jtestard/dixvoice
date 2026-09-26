@@ -14,7 +14,7 @@ from . import audio
 from .emotion import EmotionMapper, guess_language, length_padding
 from .errors import ApiError
 from .models import AudioRequest, AudioResponse
-from .providers.base import Provider, ProviderError, ProviderTimeout, ProviderUnavailable
+from .providers.base import Provider, ProviderError, ProviderTimeout, ProviderUnavailable, UnknownVoice
 from .registry import Registry
 from .settings import Settings
 from .storage import Storage
@@ -68,7 +68,12 @@ class Generator:
         truncated, spoken_text, model = False, None, "cache"
         if mp3 is None:
             source_id = None
-            mp3, truncated, spoken_text, model = await self._synthesize(spoken, voice_id, preset.temp, padding, timings)
+            try:
+                mp3, truncated, spoken_text, model = await self._synthesize(spoken, voice_id, preset.temp, padding, timings)
+            except UnknownVoice as exc:
+                if req.voiceId:
+                    raise ApiError(400, "unknown_voice", f"Gradium has no voice {req.voiceId!r}.") from exc
+                raise ApiError(502, "provider_error", f"Preset voice {voice_id!r} is unknown to Gradium.") from exc
 
         clip_id = str(uuid.uuid4())
         t_up = time.perf_counter()
@@ -104,6 +109,8 @@ class Generator:
                 syn = await self.provider.synthesize(text, voice_id, temp, padding)
             except ProviderUnavailable as exc:
                 raise ApiError(502, "provider_unavailable", str(exc)) from exc
+            except UnknownVoice:
+                raise
             except ProviderTimeout as exc:
                 raise ApiError(502, "provider_timeout", str(exc)) from exc
             except ProviderError as exc:

@@ -57,6 +57,7 @@ Errors are flat: `{"error": "<code>", "message": "…"}`.
 | 400 | `text_empty` | no letters left after cleaning |
 | 400 | `text_has_digits` | digits (Gradium reads numbers out in full, which never fits in 2 s): write them in words |
 | 400 | `text_rejected` | a blocked word in `text` or `emotion` ([`config/blocklist.txt`](config/blocklist.txt)) |
+| 400 | `unknown_voice` | the request's `voiceId` is not a Gradium voice |
 | 404 | `not_found` | unknown or malformed id |
 | 502 | `busy` | too many generations at once, or daily budget reached |
 | 502 | `provider_unavailable` | no key, revoked key, no credits, or `PROVIDER=off` |

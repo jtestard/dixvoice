@@ -114,3 +114,14 @@ def test_invalid_voice_id_is_400(client):
     for bad in ("", "a b", "x" * 65, "<script>"):
         r = client.post("/audio", json={"text": "Hi", "emotion": "calm", "voiceId": bad})
         assert r.status_code == 400 and r.json()["error"] == "invalid_request", bad
+
+
+def test_unknown_voice_id_is_400(client):
+    from audio_service.providers.base import UnknownVoice
+
+    async def boom(*a, **k):
+        raise UnknownVoice("Embeddings not found for nope")
+
+    client.app.state.generator.provider.synthesize = boom
+    r = client.post("/audio", json={"text": "Hi there", "emotion": "calm", "voiceId": "nope"})
+    assert r.status_code == 400 and r.json()["error"] == "unknown_voice"

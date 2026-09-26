@@ -18,6 +18,10 @@ class ProviderTimeout(ProviderError):
     """Generation took longer than PROVIDER_TIMEOUT_S (502 provider_timeout)."""
 
 
+class UnknownVoice(ProviderError):
+    """Gradium does not know the voice id (400 unknown_voice when the caller chose it)."""
+
+
 class ProviderUnavailable(ProviderError):
     """No key, revoked key, no credits, or provider switched off (502 provider_unavailable)."""
 
