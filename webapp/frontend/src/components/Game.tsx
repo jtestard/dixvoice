@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { roundResult } from '../roundResult'
-import type { ClientMessage, GameState, Player, Round } from '../types'
-import { ClipCard, FaceDownCard } from './ClipCard'
+import type { ClientMessage, GameState, Round } from '../types'
+import { Board } from './Board'
+import { ClipCard } from './ClipCard'
 import { PlayerList, PlayerName, Scoreboard, StopButton } from './Common'
 
 interface Props {
@@ -21,7 +22,6 @@ export function Game({ state, send, tutorialEnabled, onToggleTutorial }: Props &
   const { round } = state
   const you = state.you.playerId
   const isStoryteller = round?.storytellerId === you
-  const storyteller = state.players.find((p) => p.playerId === round?.storytellerId)
 
   return (
     <main className="screen screen--game">
@@ -54,17 +54,13 @@ export function Game({ state, send, tutorialEnabled, onToggleTutorial }: Props &
         </section>
       )}
 
-      {round && (
-        <p className="storyteller-line">
-          Storyteller: <strong>{isStoryteller ? 'you' : <PlayerName player={storyteller} />}</strong>
-        </p>
-      )}
+      {round && <Board state={state} onVote={round.phase === 'vote' && !isStoryteller && !round.yourVote ? (clipId) => send({ type: 'vote', clipId }) : undefined} />}
 
       {round?.phase === 'storyteller' &&
         (isStoryteller ? <StorytellerPhase state={state} send={send} /> : <WaitForClue state={state} />)}
       {round?.phase === 'submit' &&
-        (isStoryteller ? <WaitForSubmissions state={state} /> : <SubmitPhase state={state} send={send} />)}
-      {round?.phase === 'vote' && <VotePhase state={state} send={send} isStoryteller={isStoryteller} />}
+        (isStoryteller ? <WaitForSubmissions /> : <SubmitPhase state={state} send={send} />)}
+      {round?.phase === 'vote' && <VoteStatus state={state} isStoryteller={isStoryteller} />}
       {round?.phase === 'reveal' && <RevealPhase state={state} send={send} />}
 
       <footer className="game-footer">
@@ -74,18 +70,9 @@ export function Game({ state, send, tutorialEnabled, onToggleTutorial }: Props &
   )
 }
 
-function Clue({ round }: { round: Round }) {
-  return (
-    <blockquote className="clue">
-      <span className="clue__label">Clue</span>
-      <div className="clue__text">{round.clue ?? '…'}</div>
-    </blockquote>
-  )
-}
-
 function Hand({ state, selected, onSelect, actionLabel, disabled }: { state: GameState; selected: string | null; onSelect?: (id: string) => void; actionLabel?: string; disabled?: boolean }) {
   return (
-    <section aria-label="Your hand">
+    <section aria-label="Your hand" data-tutorial="hand">
       <h2>Your hand</h2>
       <div className="hand hand--dealt">
         {state.you.hand.map((clip, i) => (
@@ -98,20 +85,6 @@ function Hand({ state, selected, onSelect, actionLabel, disabled }: { state: Gam
             actionLabel={actionLabel}
             disabled={disabled}
           />
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function FaceDownTable({ state }: { state: GameState }) {
-  const count = 1 + state.players.filter((p) => !p.isStoryteller && p.hasSubmitted).length
-  return (
-    <section className="table-preview" aria-label={`${count} ${count > 1 ? 'clips' : 'clip'} on the table`}>
-      <h2>On the table</h2>
-      <div className="hand hand--facedown">
-        {Array.from({ length: count }, (_, i) => (
-          <FaceDownCard key={i} />
         ))}
       </div>
     </section>
@@ -158,153 +131,44 @@ function WaitForClue({ state }: { state: GameState }) {
 }
 
 function SubmitPhase({ state, send }: Props) {
-  const round = state.round!
-  const submitted = round.yourSubmission
-  const waitingOn = (p: Player) => !p.isStoryteller && !p.hasSubmitted
+  const submitted = state.round!.yourSubmission
   return (
     <>
-      <Clue round={round} />
       {submitted ? (
         <p className="waiting">Clip submitted. Waiting for the others…</p>
       ) : (
         <p>Pick the clip from your hand that best matches the clue.</p>
       )}
-      <FaceDownTable state={state} />
       <Hand
         state={state}
         selected={submitted}
         onSelect={submitted ? undefined : (clipId) => send({ type: 'submit_clip', clipId })}
         actionLabel="Submit"
       />
-      <h2>Players</h2>
-      <PlayerList players={state.players.filter((p) => !p.isStoryteller)} youId={state.you.playerId} waitingOn={waitingOn} />
     </>
   )
 }
 
-function WaitForSubmissions({ state }: { state: GameState }) {
-  const round = state.round!
-  const waitingOn = (p: Player) => !p.isStoryteller && !p.hasSubmitted
-  return (
-    <>
-      <Clue round={round} />
-      <p className="waiting">Waiting for the other players to submit a clip…</p>
-      <FaceDownTable state={state} />
-      <PlayerList players={state.players.filter((p) => !p.isStoryteller)} youId={state.you.playerId} waitingOn={waitingOn} />
-    </>
-  )
+function WaitForSubmissions() {
+  return <p className="waiting">Waiting for the other players to submit a clip…</p>
 }
 
-function VotePhase({ state, send, isStoryteller }: Props & { isStoryteller: boolean }) {
-  const round = state.round!
-  const voted = round.yourVote
-  const waitingOn = (p: Player) => !p.isStoryteller && !p.hasVoted
-  const canVote = !isStoryteller && !voted
-  return (
-    <>
-      <Clue round={round} />
-      {isStoryteller ? (
-        <p className="waiting">The others are voting on your clue…</p>
-      ) : voted ? (
-        <p className="waiting">Vote cast. Waiting for the others…</p>
-      ) : (
-        <p>Which clip is the storyteller&apos;s? You cannot vote for your own.</p>
-      )}
-      <section aria-label="Table">
-        <div className="hand hand--flip">
-          {round.table.map((clip, i) => {
-            const own = clip.clipId === round.yourSubmission
-            return (
-              <ClipCard
-                key={clip.clipId}
-                clip={clip}
-                index={i}
-                selected={voted === clip.clipId}
-                badge={own ? 'yours' : undefined}
-                onSelect={canVote && !own ? (clipId) => send({ type: 'vote', clipId }) : undefined}
-                actionLabel="Vote"
-              />
-            )
-          })}
-        </div>
-      </section>
-      <h2>Players</h2>
-      <PlayerList players={state.players.filter((p) => !p.isStoryteller)} youId={state.you.playerId} waitingOn={waitingOn} />
-    </>
-  )
+function VoteStatus({ state, isStoryteller }: { state: GameState; isStoryteller: boolean }) {
+  if (isStoryteller) return <p className="waiting">The others are voting on your clue…</p>
+  if (state.round!.yourVote) return <p className="waiting">Vote cast. Waiting for the others…</p>
+  return <p>Which clip on the board is the storyteller&apos;s? Listen, then vote. You cannot vote for your own.</p>
 }
 
 function RevealPhase({ state, send }: Props) {
-  const round = state.round!
-  const reveal = round.reveal
   const result = roundResult(state)
-  const byId = new Map(state.players.map((p) => [p.playerId, p]))
-  const name = (id: string) => {
-    const p = byId.get(id)
-    return p ? <PlayerName key={id} player={p} /> : id
-  }
-  const clipFor = (clipId: string) => round.table.find((c) => c.clipId === clipId)
   return (
     <>
-      <Clue round={round} />
-      {reveal && (
-        <>
-          {result && (
-            <section className={`round-result round-result--${result.tone}`} aria-label="Your round result" role="status">
-              <strong className="round-result__label">{result.label} · +{result.points}</strong>
-              <p>{result.reason}</p>
-              <p className="round-result__breakdown">{result.breakdown}</p>
-            </section>
-          )}
-          <section aria-label="Results">
-            <div className="hand hand--flip">
-              {reveal.results.map((r, i) => {
-                const clip = clipFor(r.clipId) ?? { clipId: r.clipId, clipUrl: '', text: '', emotion: '', voiceId: '' }
-                return (
-                  <ClipCard
-                    key={r.clipId}
-                    clip={clip}
-                    index={i}
-                    selected={r.isStoryteller}
-                    badge={r.isStoryteller ? 'storyteller' : undefined}
-                    badgeKind="accent"
-                  >
-                    <div className="reveal-info">
-                      <div>
-                        <span className="label">Owner </span>
-                        <strong>{name(r.ownerId)}</strong>
-                      </div>
-                      <div>
-                        <span className="label">Votes </span>
-                        {r.voterIds.length
-                          ? r.voterIds.map((id, i) => (
-                              <span key={id}>
-                                {i > 0 && ', '}
-                                {name(id)}
-                              </span>
-                            ))
-                          : 'none'}
-                      </div>
-                    </div>
-                  </ClipCard>
-                )
-              })}
-            </div>
-          </section>
-          <h2>Points this round</h2>
-          <ul className="points">
-            {state.players.map((p) => (
-              <li key={p.playerId} className={p.playerId === state.you.playerId ? 'you' : undefined}>
-                <span>
-                  <PlayerName player={p} />
-                </span>
-                <span className="num">
-                  <span className="points__won">+{reveal.points[p.playerId] ?? 0}</span> <span className="muted">({p.score})</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
+      {result && (
+        <section className={`round-result round-result--${result.tone}`} aria-label="Your round result" role="status">
+          <strong className="round-result__label">{result.label} · +{result.points}</strong>
+          <p>{result.reason}</p>
+          <p className="round-result__breakdown">{result.breakdown}</p>
+        </section>
       )}
       <button type="button" className="btn btn--primary btn--block" onClick={() => send({ type: 'next_round' })}>
         Next round

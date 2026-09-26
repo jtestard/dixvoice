@@ -103,6 +103,11 @@ Screens and features:
   players), a Stop button, a Leave button, an "Add AI companion" button (hidden when the room is full) and a remove
   button next to each companion. Companions show a bot badge wherever player names appear.
 - **Hand**: the player's 6 clips as cards; tapping a card plays its sound.
+- **Board**: during a round the game is played on a Dixit-style board that stays on screen in every phase: the 0 to
+  10 score track with each player's pawn, a felt play area with one numbered slot per player (empty while the
+  storyteller chooses, then a face-down card per clip played, the clips face up for the vote, and each clip with its
+  owner and the voters' pawns at the reveal), and a rail of players (you first) where the storyteller's pawn carries
+  the microphone token. Each player has a distinct pawn (colour and shape by join order).
 - **Round screens**, one per phase (see Game rules): the storyteller picks a clip and writes a clue; the others pick a
   clip; everyone votes on the shuffled clips; the reveal shows owners, votes and points won. Show who has already
   submitted or voted so players know who they are waiting for.
