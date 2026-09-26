@@ -4,8 +4,8 @@
 
 The game will be released on http://itch.io/.
 
-The idea of Dixvoice is a clever twist on the famous Dixit game, where players use and generate audio clips instead 
-of cards. 
+The idea of Dixvoice is a clever twist on the famous Dixit game, where players use and generate audio clips instead
+of cards.
 
 Each audio clip will be no more than 2 seconds long.
 
@@ -13,11 +13,13 @@ As with Dixit where players have 6 cards, players will have 5 sounds clips of up
 
 ## Web App
 
-We are going to be build a web app, with golang backend and vite.js react frontend, similar to gcast-tv.
+We are going to be build a web app, with golang backend and vite.js react frontend.
 
 ### Front-End
 
-A player can start a game. 
+Root dir: ./webapp/frontend
+
+A player can start a game.
 
 The frontend is a Vite + React single-page app, built as a static bundle so it can be uploaded to itch.io as an HTML5
 game. It holds no game logic: it renders the state sent by the backend and sends player actions back.
@@ -38,6 +40,8 @@ Screens and features:
 - **Scoreboard** and end-of-game screen.
 
 ### Back-End
+
+Root dir: ./webapp/backend
 
 Manages basic multiplayer, there is a single room for the hackathon.
 
@@ -64,7 +68,6 @@ Responsibilities:
 
 The audio generator microservice has 3 endpoints:
 
- - GET: /audio/list: list all possible sound objects in JSON
- - GET: /audio/{id}: returns the mp3 file for a given audio sound
- - POST: /audio: create a new sound from text and tonality
-
+- GET: /audio/list: list all possible sound objects in JSON
+- GET: /audio/{id}: returns the mp3 file for a given audio sound
+- POST: /audio: create a new sound from text and tonality
