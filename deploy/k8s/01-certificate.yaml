@@ -1,4 +1,4 @@
-# TLS for both hosts, issued by the cluster's Let's Encrypt issuer (DNS-01 through Route53).
+# TLS for the public hosts, issued by the cluster's Let's Encrypt issuer (DNS-01 through Route53).
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -12,3 +12,4 @@ spec:
   dnsNames:
     - dixvoice.api.gcast.app
     - dixvoice-web.api.gcast.app
+    - dixvoice-sample.api.gcast.app

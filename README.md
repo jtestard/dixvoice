@@ -287,6 +287,15 @@ exact same HTTP and WebSocket protocol as the web app, from a separate service a
 - The backend reaches it at `COMPANION_SERVICE_URL` (e.g. `http://dixvoice-companions.dixvoice.svc.cluster.local:8080`).
   It is not exposed publicly.
 
+### Sample
+
+Root dir: ./webapp/sample
+
+A tiny static page, https://dixvoice-sample.api.gcast.app, to browse and play every clip of the audio library. It
+reads `webapp/audio/library/manifest.json` (copied into the image at build time) and plays each clip from the CDN.
+It shows each clip's text, emotion and voice, with search and filters, so the team can explore the library. Pure
+JavaScript, no build step. Deploy with `make deploy-sample`.
+
 ## Deployment
 
 Everything runs on the gcast EKS cluster (context `gcast-eks`), in the `dixvoice` namespace, with plain Kubernetes
@@ -298,12 +307,15 @@ files in [`deploy/k8s/`](deploy/k8s) (no Terraform for now):
 | Backend (Go, HTTP + WebSocket) | https://dixvoice.api.gcast.app | `398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-backend:latest` | 8080 |
 | Audio service (Python) | internal only: `http://dixvoice-audio.dixvoice.svc.cluster.local` | `398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-audio:latest` | 80 |
 | AI companions (Go + Gemini) | internal only: `http://dixvoice-companions.dixvoice.svc.cluster.local:8080` | `398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-companions:latest` | 8080 |
+| Sample: clip browser (static page) | https://dixvoice-sample.api.gcast.app | `398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-sample:latest` | 8080 |
 
 - `00-namespace.yaml`: the `dixvoice` namespace.
-- `01-certificate.yaml`: one cert-manager certificate for both hosts, from the `letsencrypt-prod` cluster issuer
+- `01-certificate.yaml`: one cert-manager certificate for the public hosts, from the `letsencrypt-prod` cluster issuer
   (DNS-01 through Route53). DNS already points `*.api.gcast.app` to the Contour load balancer.
 - `backend.yaml` and `web.yaml`: Deployment, Service and Contour Ingress for each app. The backend ingress allows
   WebSocket upgrades (`projectcontour.io/websocket-routes`), like gcast-proxy.
+- `sample.yaml`: the sample clip browser (Deployment, Service, Contour Ingress). Its image is built from `webapp/`
+  so it can include `webapp/audio/library/manifest.json`.
 - `audio.yaml` and `companions.yaml`: Deployment and internal Service, no Ingress. Their API keys come from
   secrets created by `make audio-secret` and `make companions-secret` from files in the git-ignored `secret/` folder.
 - Cluster nodes are **arm64**: images are built with `docker buildx --platform linux/arm64`.
