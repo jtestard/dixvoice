@@ -278,7 +278,11 @@ exact same HTTP and WebSocket protocol as the web app, from a separate service a
 - **Rules**: companions count as players for the 4–8 limit and score like everyone else. They are shown with a bot
   badge (`isCompanion: true`).
 - **Decisions**, from each clip's `text` and `emotion` only (never the audio), with the Google Gemini API:
-  - as storyteller: pick a clip from the hand and write a short, evocative clue that fits it without giving it away;
+  - as storyteller: aim for a clue that *some* but not all players find (the only case where the storyteller
+    scores). Gemini proposes several candidate clues on different clips, a lexical filter drops any that reuse words
+    of the clip's text or emotion, simulated guessers estimate how often each is found, and the candidate with the
+    best expected score under the scoring rule wins. Past storyteller rounds in the room (how many found the clip)
+    steer the next clue. See `webapp/companions/README.md`;
   - in the submit phase: pick the clip from the hand that best matches the clue;
   - in the vote phase: vote for the clip on the table most likely to be the storyteller's, never its own.
   - They act after a short random delay (2–6 s) so the game feels natural, and fall back to a random valid move if

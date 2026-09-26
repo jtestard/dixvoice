@@ -85,6 +85,40 @@ type Round struct {
 	YourSubmission *string `json:"yourSubmission"`
 	YourVote       *string `json:"yourVote"`
 	Table          []Clip  `json:"table"`
+	Reveal         *Reveal `json:"reveal"`
+}
+
+// Reveal is filled in the reveal phase: who owned each table clip and who
+// voted for it.
+type Reveal struct {
+	Results []RevealResult `json:"results"`
+	Points  map[string]int `json:"points"`
+}
+
+type RevealResult struct {
+	ClipID        string   `json:"clipId"`
+	OwnerID       string   `json:"ownerId"`
+	IsStoryteller bool     `json:"isStoryteller"`
+	VoterIDs      []string `json:"voterIds"`
+}
+
+// ClueRequest is what a Brain gets when the companion is the storyteller.
+type ClueRequest struct {
+	Hand []Clip
+	// Players is the number of players in the room, the storyteller
+	// included; the guessers are Players-1.
+	Players int
+	// History holds the companion's past storyteller rounds in this room,
+	// oldest first.
+	History []StorytellerResult
+}
+
+// StorytellerResult is the outcome of one of the companion's storyteller
+// rounds: how many of the Guessers found its clip.
+type StorytellerResult struct {
+	Clue     string
+	Finders  int
+	Guessers int
 }
 
 // Action is a client-to-server message.

@@ -27,7 +27,7 @@ import (
 // return a clipId among the clips it was given; the companion validates the
 // answer and falls back to a random valid move otherwise.
 type Brain interface {
-	ChooseClue(ctx context.Context, hand []protocol.Clip) (clipID, clue string, err error)
+	ChooseClue(ctx context.Context, req protocol.ClueRequest) (clipID, clue string, err error)
 	ChooseSubmission(ctx context.Context, clue string, hand []protocol.Clip) (clipID string, err error)
 	ChooseVote(ctx context.Context, clue string, table []protocol.Clip) (clipID string, err error)
 }
@@ -43,6 +43,9 @@ type Config struct {
 	Delay func() time.Duration
 	// DecisionTimeout bounds each Brain call (10 s when zero).
 	DecisionTimeout time.Duration
+	// ClueTimeout bounds the storyteller's Brain call, which searches
+	// several candidate clues (20 s when zero).
+	ClueTimeout time.Duration
 	// MaxReconnects is the number of consecutive failed reconnects before the
 	// companion gives up (20 when zero).
 	MaxReconnects int
@@ -61,6 +64,9 @@ func (c Config) withDefaults() Config {
 	}
 	if c.DecisionTimeout == 0 {
 		c.DecisionTimeout = 10 * time.Second
+	}
+	if c.ClueTimeout == 0 {
+		c.ClueTimeout = 20 * time.Second
 	}
 	if c.MaxReconnects == 0 {
 		c.MaxReconnects = 20
@@ -109,7 +115,15 @@ type Companion struct {
 	retries   int    // moves rejected by the backend for retryKey
 	pending   context.CancelFunc
 	lastState *protocol.State
+
+	// history records the companion's storyteller rounds in this room so the
+	// Brain can calibrate its clues; revealed is the last round recorded.
+	history  []protocol.StorytellerResult
+	revealed string
 }
+
+// maxHistory bounds the storyteller results kept per room.
+const maxHistory = 5
 
 // Join takes a seat in the room as an AI companion. The companion is not
 // connected yet: call Run.
@@ -342,6 +356,7 @@ func (c *Companion) handleState(ctx context.Context, st *protocol.State) {
 	kind := plan(st)
 	c.mu.Lock()
 	c.lastState = st
+	c.recordRevealLocked(st)
 	if kind == noMove {
 		// The round moved on (or the game ended): drop any move scheduled for
 		// a phase that is over.
@@ -362,6 +377,48 @@ func (c *Companion) handleState(ctx context.Context, st *protocol.State) {
 	c.pending = cancel
 	c.mu.Unlock()
 	go c.act(actx, st, kind)
+}
+
+// recordRevealLocked remembers, once per round, how many guessers found the
+// companion's clip when it was the storyteller.
+func (c *Companion) recordRevealLocked(st *protocol.State) {
+	r := st.Round
+	if r == nil || r.Phase != protocol.PhaseReveal || r.Reveal == nil || r.StorytellerID != st.You.PlayerID {
+		return
+	}
+	clue := derefString(r.Clue)
+	key := fmt.Sprintf("%d:%s", r.Number, clue)
+	if key == c.revealed {
+		return
+	}
+	for _, res := range r.Reveal.Results {
+		if !res.IsStoryteller {
+			continue
+		}
+		c.revealed = key
+		result := protocol.StorytellerResult{Clue: clue, Finders: len(res.VoterIDs), Guessers: len(st.Players) - 1}
+		c.history = append(c.history, result)
+		if len(c.history) > maxHistory {
+			c.history = c.history[len(c.history)-maxHistory:]
+		}
+		c.log.Debug("storyteller round recorded", "round", r.Number, "clue", clue, "finders", result.Finders, "guessers", result.Guessers)
+		return
+	}
+}
+
+// History returns the companion's storyteller results in this room, oldest
+// first.
+func (c *Companion) History() []protocol.StorytellerResult {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]protocol.StorytellerResult(nil), c.history...)
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // retryLastState re-plans the current phase after the backend rejected a
@@ -410,7 +467,11 @@ func (c *Companion) act(ctx context.Context, st *protocol.State, kind moveKind) 
 	case <-ctx.Done():
 		return
 	}
-	dctx, cancel := context.WithTimeout(ctx, c.cfg.DecisionTimeout)
+	timeout := c.cfg.DecisionTimeout
+	if kind == moveClue {
+		timeout = c.cfg.ClueTimeout
+	}
+	dctx, cancel := context.WithTimeout(ctx, timeout)
 	action := c.decide(dctx, st, kind)
 	cancel()
 	if ctx.Err() != nil {
@@ -430,7 +491,8 @@ func (c *Companion) decide(ctx context.Context, st *protocol.State, kind moveKin
 	}
 	switch kind {
 	case moveClue:
-		id, text, err := c.cfg.Brain.ChooseClue(ctx, st.You.Hand)
+		req := protocol.ClueRequest{Hand: st.You.Hand, Players: len(st.Players), History: c.History()}
+		id, text, err := c.cfg.Brain.ChooseClue(ctx, req)
 		if err != nil || !hasClip(st.You.Hand, id) || strings.TrimSpace(text) == "" {
 			c.fallback("submit_clue", err)
 			id, text = randomClip(st.You.Hand), randomClue()

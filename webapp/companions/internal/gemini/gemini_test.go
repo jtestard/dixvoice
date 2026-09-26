@@ -49,9 +49,9 @@ func fakeGemini(t *testing.T, answer string, status int) (*Client, *[]request) {
 	return New(srv.URL, "secret", "test-model", srv.Client()), &seen
 }
 
-func TestChooseClue(t *testing.T) {
+func TestChooseClueSingle(t *testing.T) {
 	c, seen := fakeGemini(t, `{"clipId":"a2","clue":"candles in the dark"}`, 0)
-	id, clue, err := c.ChooseClue(context.Background(), hand)
+	id, clue, err := c.ChooseClueSingle(context.Background(), protocol.ClueRequest{Hand: hand})
 	if err != nil || id != "a2" || clue != "candles in the dark" {
 		t.Fatalf("got %q %q %v", id, clue, err)
 	}
@@ -97,7 +97,7 @@ func TestInvalidAnswers(t *testing.T) {
 		}
 	}
 	c, _ := fakeGemini(t, `{"clipId":"a1","clue":"  "}`, 0)
-	if _, _, err := c.ChooseClue(context.Background(), hand); !errors.Is(err, ErrInvalidAnswer) {
+	if _, _, err := c.ChooseClue(context.Background(), protocol.ClueRequest{Hand: hand}); !errors.Is(err, ErrInvalidAnswer) {
 		t.Errorf("empty clue: want ErrInvalidAnswer, got %v", err)
 	}
 }

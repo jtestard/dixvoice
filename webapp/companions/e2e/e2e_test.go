@@ -169,7 +169,12 @@ func fakeGemini(t *testing.T, calls *atomic.Int64) *httptest.Server {
 			GenerationConfig struct {
 				ResponseSchema struct {
 					Properties map[string]struct {
-						Enum []string `json:"enum"`
+						Enum  []string `json:"enum"`
+						Items *struct {
+							Properties map[string]struct {
+								Enum []string `json:"enum"`
+							} `json:"properties"`
+						} `json:"items"`
 					} `json:"properties"`
 					Required []string `json:"required"`
 				} `json:"responseSchema"`
@@ -180,19 +185,30 @@ func fakeGemini(t *testing.T, calls *atomic.Int64) *httptest.Server {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		enum := req.GenerationConfig.ResponseSchema.Properties["clipId"].Enum
-		if len(enum) == 0 {
-			t.Errorf("fake gemini: no clipId enum in schema")
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		answer := map[string]string{"clipId": enum[rand.IntN(len(enum))]}
-		for _, f := range req.GenerationConfig.ResponseSchema.Required {
-			if f == "clue" {
-				answer["clue"] = "whispers behind the wall"
+		var text []byte
+		if items := req.GenerationConfig.ResponseSchema.Properties["candidates"].Items; items != nil {
+			// The storyteller's candidate search: a few clues on random clips.
+			enum := items.Properties["clipId"].Enum
+			var cands []map[string]string
+			for _, clue := range []string{"whispers behind the wall", "a knock at midnight", "salt and stone", "wax and wishes"} {
+				cands = append(cands, map[string]string{"clipId": enum[rand.IntN(len(enum))], "clue": clue})
 			}
+			text, _ = json.Marshal(map[string]any{"candidates": cands})
+		} else {
+			enum := req.GenerationConfig.ResponseSchema.Properties["clipId"].Enum
+			if len(enum) == 0 {
+				t.Errorf("fake gemini: no clipId enum in schema")
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			answer := map[string]string{"clipId": enum[rand.IntN(len(enum))]}
+			for _, f := range req.GenerationConfig.ResponseSchema.Required {
+				if f == "clue" {
+					answer["clue"] = "whispers behind the wall"
+				}
+			}
+			text, _ = json.Marshal(answer)
 		}
-		text, _ := json.Marshal(answer)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"candidates": []any{map[string]any{"content": map[string]any{"role": "model", "parts": []any{map[string]any{"text": string(text)}}}}},
 		})

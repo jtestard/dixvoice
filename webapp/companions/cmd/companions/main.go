@@ -31,7 +31,7 @@ func main() {
 	if apiKey == "" {
 		log.Warn("GEMINI_API_KEY is not set: every Gemini call will fail and companions will play random moves")
 	}
-	brain := gemini.New(env("GEMINI_BASE_URL", gemini.DefaultBaseURL), apiKey, os.Getenv("GEMINI_MODEL"), &http.Client{Timeout: 15 * time.Second})
+	brain := gemini.New(env("GEMINI_BASE_URL", gemini.DefaultBaseURL), apiKey, os.Getenv("GEMINI_MODEL"), &http.Client{Timeout: 15 * time.Second}).WithLogger(log)
 
 	srv := server.New(companion.Config{BackendURL: backendURL, Brain: brain}, log)
 	httpSrv := &http.Server{
