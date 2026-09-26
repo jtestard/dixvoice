@@ -514,6 +514,11 @@ h2 {
   color: var(--color-muted);
 }
 
+.tag--bot {
+  background: var(--color-selected-bg);
+  border-color: var(--color-selected);
+}
+
 /* Game */
 .game-header {
   display: flex;

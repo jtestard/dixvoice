@@ -115,6 +115,37 @@ describe('App', () => {
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
   })
 
+  it('returns to Home gracefully on room_closed with reason "removed"', async () => {
+    localStorage.setItem(TOKEN_KEY, 'tok-5')
+    render(<App />)
+    act(() => {
+      last().open()
+      last().receive(lobbyState())
+    })
+    act(() => {
+      last().receive({ type: 'room_closed', reason: 'removed' })
+      last().close()
+    })
+    expect(await screen.findByLabelText('Nickname')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/removed from the room/)
+    expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
+  })
+
+  it('shows friendly messages for companion error codes', () => {
+    localStorage.setItem(TOKEN_KEY, 'tok-6')
+    render(<App />)
+    act(() => {
+      last().open()
+      last().receive(lobbyState())
+    })
+    act(() => last().receive({ type: 'error', code: 'companion_unavailable', message: 'x' }))
+    expect(screen.getByRole('alert')).toHaveTextContent(/AI companions are unavailable/)
+    act(() => last().receive({ type: 'error', code: 'not_a_companion', message: 'x' }))
+    expect(screen.getByRole('alert')).toHaveTextContent(/not an AI companion/)
+    act(() => last().receive({ type: 'error', code: 'room_full', message: 'x' }))
+    expect(screen.getByRole('alert')).toHaveTextContent(/No more room/)
+  })
+
   it('reconnects automatically after the socket drops', async () => {
     vi.useFakeTimers()
     localStorage.setItem(TOKEN_KEY, 'tok-4')

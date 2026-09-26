@@ -11,9 +11,11 @@ npm run mock     # dev mock backend on http://localhost:8080 (terminal 1)
 npm run dev      # Vite dev server on http://localhost:5173 (terminal 2)
 ```
 
-The mock (`mock/server.mjs`) implements the Protocol with 3 bot players per room and a few sample mp3 tones, so one
-person can click through a whole game alone. Bots act ~1.5 s after each phase change. Options (env vars):
-`PORT` (8080), `MOCK_BOTS` (3), `MOCK_BOT_DELAY_MS` (1500), `MOCK_POOL_SIZE` (240 sounds).
+The mock (`mock/server.mjs`) implements the Protocol, including `add_companion` / `remove_companion`, with a few
+sample mp3 tones: press "Add AI companion" three times in the lobby and one person can click through a whole game
+alone. Mock companions play random valid moves ~1.5 s after each phase change. Options (env vars): `PORT` (8080),
+`MOCK_BOTS` (0, extra non-companion bots pre-seated in every room), `MOCK_BOT_DELAY_MS` (1500), `MOCK_POOL_SIZE`
+(240 sounds), `MOCK_COMPANIONS_DOWN=1` (make `add_companion` fail with `companion_unavailable`).
 
 Against a real backend, point `VITE_BACKEND_URL` at it (copy `.env.example` to `.env.local`):
 

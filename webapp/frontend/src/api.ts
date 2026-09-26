@@ -23,6 +23,8 @@ export const ERROR_TEXT: Record<string, string> = {
   already_submitted: 'You already submitted.',
   cannot_vote_own: 'You cannot vote for your own clip.',
   not_enough_players: 'At least 4 players are needed to start.',
+  not_a_companion: 'That player is not an AI companion.',
+  companion_unavailable: 'AI companions are unavailable right now. Please try again later.',
   network: 'Could not reach the server.',
 }
 

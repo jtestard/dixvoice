@@ -4,6 +4,9 @@ export type Phase = 'storyteller' | 'submit' | 'vote' | 'reveal'
 export interface Clip {
   clipId: string
   clipUrl: string
+  text: string
+  emotion: string
+  voiceId: string
 }
 
 export interface Player {
@@ -14,6 +17,7 @@ export interface Player {
   isStoryteller: boolean
   hasSubmitted: boolean
   hasVoted: boolean
+  isCompanion: boolean
 }
 
 export interface RevealResult {
@@ -65,6 +69,8 @@ export type ClientMessage =
   | { type: 'start_game' }
   | { type: 'stop_game' }
   | { type: 'leave_room' }
+  | { type: 'add_companion' }
+  | { type: 'remove_companion'; playerId: string }
   | { type: 'next_round' }
   | { type: 'submit_clue'; clipId: string; clue: string }
   | { type: 'submit_clip'; clipId: string }

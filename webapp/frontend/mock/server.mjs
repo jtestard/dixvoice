@@ -1,6 +1,7 @@
 // Dev mock of the Dixvoice backend (README > Web App > Back-End > Protocol).
-// Every room gets 3 bot players so a single human can play a whole game.
-// Not the real backend: no persistence, minimal validation, bots act after a short delay.
+// Rooms start with MOCK_BOTS bot players (default 0); "Add AI companion" adds mock companions that play random
+// valid moves, so a single human can play a whole game alone with 3 companions.
+// Not the real backend: no persistence, minimal validation, companions act after a short delay.
 import { createServer } from 'node:http'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -8,7 +9,8 @@ import { randomUUID } from 'node:crypto'
 import { WebSocketServer } from 'ws'
 
 const PORT = Number(process.env.PORT ?? 8080)
-const BOTS = Number(process.env.MOCK_BOTS ?? 3)
+const BOTS = Number(process.env.MOCK_BOTS ?? 0)
+const MAX_PLAYERS = 8
 const BOT_DELAY_MS = Number(process.env.MOCK_BOT_DELAY_MS ?? 1500)
 const TARGET_SCORE = 10
 const HAND_SIZE = 6
@@ -18,6 +20,10 @@ const clipsDir = resolve(import.meta.dirname, 'clips')
 const clipFiles = readdirSync(clipsDir).filter((f) => f.endsWith('.mp3')).sort()
 const clipData = new Map(clipFiles.map((f) => [f, readFileSync(resolve(clipsDir, f))]))
 const BOT_NAMES = ['Ana', 'Ben', 'Chloé', 'Dmitri', 'Eve', 'Farid', 'Gus']
+const COMPANION_NAMES = ['Robo Ada', 'Robo Turing', 'Robo Grace', 'Robo Linus', 'Robo Hedy', 'Robo Marvin', 'Robo Kay']
+const CLIP_TEXTS = ['Is anyone there?', 'Shut the door.', 'We made it!', 'Don’t look back.', 'Where did everyone go?', 'One more time.', 'It’s raining again.', 'Quiet now.']
+const EMOTIONS = ['eerie', 'happy', 'sad', 'angry', 'calm', 'excited', 'whisper', 'tired']
+const VOICE_IDS = ['6MFfc37kq0sBjBjy', 'pNInz6obpgDQGcFmaJgB', 'EXAVITQu4vr4xnSDxMaL', 'TxGEqnHWrfWFTfGW9XjX']
 const BOT_CLUES = ['a door in the rain', 'lost in the fog', 'the last train', 'someone is watching', 'summer at grandma’s', 'broken glass', 'a secret', 'wake up']
 
 const baseUrl = (req) => `http://${req.headers.host ?? `localhost:${PORT}`}`
@@ -25,7 +31,11 @@ const sounds = (req) =>
   Array.from({ length: POOL_SIZE }, (_, i) => ({
     id: `snd-${String(i + 1).padStart(4, '0')}`,
     clipUrl: `${baseUrl(req)}/clips/${clipFiles[i % clipFiles.length]}`,
+    text: CLIP_TEXTS[i % CLIP_TEXTS.length],
+    emotion: EMOTIONS[(i * 3) % EMOTIONS.length],
+    voiceId: VOICE_IDS[(i * 5) % VOICE_IDS.length],
   }))
+const toClip = ({ id, ...rest }) => ({ clipId: id, ...rest })
 
 const rooms = new Map() // code -> room
 const tokens = new Map() // token -> { code, playerId }
@@ -47,7 +57,7 @@ function newCode() {
   return code
 }
 
-function addPlayer(room, nickname, bot = false) {
+function addPlayer(room, nickname, bot = false, companion = false) {
   const player = {
     playerId: `p${room.nextId++}`,
     nickname,
@@ -57,6 +67,7 @@ function addPlayer(room, nickname, bot = false) {
     submission: null,
     vote: null,
     bot,
+    companion,
     socket: null,
   }
   room.players.push(player)
@@ -80,6 +91,14 @@ function createRoom(req) {
   return room
 }
 
+function addCompanion(room) {
+  const taken = new Set(room.players.map((p) => p.nickname))
+  const name = COMPANION_NAMES.find((n) => !taken.has(n)) ?? `Robo ${room.nextId}`
+  const p = addPlayer(room, name, true, true)
+  console.log(`room ${room.code}: companion ${p.nickname} (${p.playerId}) joined`)
+  return p
+}
+
 function deleteRoom(room, reason) {
   for (const p of room.players) {
     if (p.socket) {
@@ -98,7 +117,7 @@ function deal(room) {
   const available = shuffle(room.pool.filter((s) => !room.used.has(s.id)))
   if (available.length < room.players.length * HAND_SIZE) return false
   for (const p of room.players) {
-    p.hand = available.splice(0, HAND_SIZE).map((s) => ({ clipId: s.id, clipUrl: s.clipUrl }))
+    p.hand = available.splice(0, HAND_SIZE).map(toClip)
     for (const c of p.hand) room.used.add(c.clipId)
     p.submission = null
     p.vote = null
@@ -225,6 +244,21 @@ function handle(room, player, msg) {
     case 'stop_game':
       deleteRoom(room, 'stopped')
       return null
+    case 'add_companion': {
+      if (room.status === 'playing') return err('invalid_phase', 'Cannot add a companion during a game')
+      if (room.players.length >= MAX_PLAYERS) return err('room_full', 'No more room')
+      if (process.env.MOCK_COMPANIONS_DOWN) return err('companion_unavailable', 'Companion service unavailable')
+      addCompanion(room)
+      return null
+    }
+    case 'remove_companion': {
+      if (room.status === 'playing') return err('invalid_phase', 'Cannot remove a companion during a game')
+      const target = room.players.find((p) => p.playerId === msg.playerId)
+      if (!target || !target.companion) return err('not_a_companion', 'That player is not a companion')
+      room.players = room.players.filter((p) => p !== target)
+      console.log(`room ${room.code}: companion ${target.nickname} (${target.playerId}) removed`)
+      return null
+    }
     case 'leave_room': {
       if (room.status === 'playing') return err('invalid_phase', 'Cannot leave during a game')
       room.players = room.players.filter((p) => p !== player)
@@ -289,6 +323,7 @@ function snapshot(room, player) {
       isStoryteller: r ? p.playerId === r.storytellerId : false,
       hasSubmitted: !!p.submission,
       hasVoted: !!p.vote,
+      isCompanion: p.companion,
     })),
     round: r
       ? {
@@ -369,13 +404,13 @@ const server = createServer(async (req, res) => {
 
   const join = path.match(/^\/rooms\/([^/]+)\/join$/)
   if (req.method === 'POST' && join) {
-    const { nickname } = await readBody(req)
+    const { nickname, companion } = await readBody(req)
     if (typeof nickname !== 'string' || !nickname.trim()) return fail(res, 400, 'invalid_nickname', 'Nickname required')
     const room = rooms.get(join[1].toUpperCase())
     if (!room) return fail(res, 404, 'room_not_found', 'Unknown room code')
     if (room.status !== 'lobby') return fail(res, 409, 'game_started', 'Game already started')
-    if (room.players.length >= 8) return fail(res, 409, 'room_full', 'No more room')
-    const player = addPlayer(room, nickname.trim())
+    if (room.players.length >= MAX_PLAYERS) return fail(res, 409, 'room_full', 'No more room')
+    const player = addPlayer(room, nickname.trim(), false, companion === true)
     const token = randomUUID()
     tokens.set(token, { code: room.code, playerId: player.playerId })
     broadcast(room)
@@ -419,4 +454,4 @@ server.on('upgrade', (req, socket, head) => {
   })
 })
 
-server.listen(PORT, () => console.log(`Dixvoice mock backend on http://localhost:${PORT} (bots: ${BOTS})`))
+server.listen(PORT, () => console.log(`Dixvoice mock backend on http://localhost:${PORT} (bots: ${BOTS}, add companions from the lobby)`))
