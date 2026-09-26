@@ -105,6 +105,32 @@ Screens and features:
   "Stop".
 - A **Stop** button is available during the game too; it asks for confirmation in the page (no browser dialog).
 
+Tutorial (cue cards):
+
+- A **cue card** tells the player what to do right now. It is chosen from the state the frontend already has: the
+  screen (Home, Lobby, Game, End of game), the round phase, whether the player is the storyteller, and whether they
+  have already submitted or voted. Frontend only: no backend or protocol change.
+- **Dismissable**: "Got it" hides the current card until the moment changes (next phase, or submitted/voted). A "How
+  to play" toggle in the game header turns the tutorial off or on; it is on by default and the choice is remembered on
+  the device.
+- **Placement**: a side column next to the game on screens 900px wide and up; on phones, a compact card at the top of
+  the screen content. It never covers the clips or the action buttons. Styled as a Tape Deck cue card (see
+  [docs/design.md](docs/design.md)).
+- Round phases are labelled `STEP 1/4` to `STEP 4/4`. The cards say:
+
+| Moment | Cue card |
+|---|---|
+| Home | Pick a nickname, then create a room or join a friend's with their 4-letter code. |
+| Lobby | Share the room code. You need 4 to 8 players, and anyone can press Start. Short on players? Add an AI companion. |
+| 1/4 Storyteller, you | You're the storyteller. Tap your clips to listen, pick one, and write a clue. Aim for a clue some players get, but not all. |
+| 1/4 Storyteller, others | The storyteller is choosing a clip and writing a clue. Listen to your hand in the meantime. |
+| 2/4 Submit, to do | Pick the clip from your hand that best fits the clue. It will be shuffled in with the storyteller's. |
+| 2/4 Submit, storyteller or done | Waiting for everyone to pick a clip. |
+| 3/4 Vote, to do | Listen to every clip and vote for the one you think is the storyteller's. You can't vote for your own. |
+| 3/4 Vote, storyteller or done | Waiting for the votes. Storyteller: you want some players to find your clip, but not all. |
+| 4/4 Reveal | If everyone or no one found the storyteller's clip, the storyteller scores 0 and everyone else 2. Otherwise the storyteller and each finder score 3. You also get 1 point per vote your clip received. |
+| End of game | First to 10 points wins. Start a new game with the same players, or stop to close the room. |
+
 Audio playback:
 
 - Every clip in the state comes with its `clipUrl` (a CDN URL); the frontend plays it with an HTML `<audio>` element.
