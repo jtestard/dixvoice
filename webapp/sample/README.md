@@ -1,29 +1,21 @@
-# sample — audio library browser
+# sample — audio clip browser
 
-A tiny static page (plain `index.html`, `app.js`, `style.css`; no build step) that lists every clip of the audio
-library from `webapp/audio/library/manifest.json`, with text search, emotion / voice filters, sorting and playback
-from the CDN (`https://dp1tbjxi4bfec.cloudfront.net/audio/{id}.mp3`). Filter state is kept in the URL query string
-(e.g. `?q=gap&emotion=neutral`) so a view can be shared.
+A tiny static page (plain `index.html`, `app.js`, `style.css`; no build step) that lists every sound of the audio
+service, library and generated, with text search, emotion / voice filters, sorting and playback. Filter state is
+kept in the URL query string (e.g. `?q=gap&emotion=neutral`) so a view can be shared.
 
-The page fetches `./manifest.json` from its own origin at runtime, so the served folder must contain a copy of the
-library manifest.
-
-## Run locally
-
-```sh
-cd webapp/sample
-cp ../audio/library/manifest.json .
-python3 -m http.server 8080
-# open http://localhost:8080/
-```
+It loads `https://dixvoice.api.gcast.app/audio/list` (the backend's proxy of the audio service, which returns full
+AudioResponse objects) and plays each clip from its `clipUrl` on the CDN. The backend must list the page's origin in
+`ALLOWED_ORIGINS` (`https://dixvoice-sample.api.gcast.app` in production; `http://localhost:8080` is not allowed, so
+locally point `API` in `app.js` at a local backend started with that origin).
 
 ## Docker
 
-Built from `webapp/` as context so the manifest can be copied in; served by `nginxinc/nginx-unprivileged` on port 8080.
+Served by `nginxinc/nginx-unprivileged` on port 8080.
 
 ```sh
-docker buildx build --platform linux/arm64 -f webapp/sample/Dockerfile -t dixvoice-sample --load webapp
+docker buildx build --platform linux/arm64 -t dixvoice-sample --load webapp/sample
 docker run --rm -p 8080:8080 dixvoice-sample
-curl -i localhost:8080/            # 200, readiness probe
-curl -s localhost:8080/manifest.json | head
 ```
+
+Deploy with `make deploy-sample` from the repository root.

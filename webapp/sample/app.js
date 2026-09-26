@@ -1,7 +1,8 @@
 (function () {
   'use strict';
 
-  var CDN = 'https://dp1tbjxi4bfec.cloudfront.net/audio/';
+  // Every sound the audio service knows (AudioResponse objects), through the backend's proxy.
+  var API = 'https://dixvoice.api.gcast.app/audio/list';
 
   var $ = function (id) { return document.getElementById(id); };
   var els = {
@@ -10,8 +11,6 @@
     emotion: $('emotion'),
     voice: $('voice'),
     sort: $('sort'),
-    enabled: $('enabled'),
-    deal: $('deal'),
     reset: $('reset'),
     rows: $('rows'),
     table: $('clips'),
@@ -24,8 +23,6 @@
   var clips = [];
   var playingId = null;
 
-  function cdnUrl(clip) { return CDN + clip.id + '.mp3'; }
-
   // ---- URL state -----------------------------------------------------------
 
   function readState() {
@@ -34,8 +31,6 @@
     els.emotion.value = p.get('emotion') || '';
     els.voice.value = p.get('voice') || '';
     els.sort.value = p.get('sort') || '';
-    els.enabled.checked = p.get('enabled') === '1';
-    els.deal.checked = p.get('deal') === '1';
   }
 
   function writeState() {
@@ -44,8 +39,6 @@
     if (els.emotion.value) p.set('emotion', els.emotion.value);
     if (els.voice.value) p.set('voice', els.voice.value);
     if (els.sort.value) p.set('sort', els.sort.value);
-    if (els.enabled.checked) p.set('enabled', '1');
-    if (els.deal.checked) p.set('deal', '1');
     var qs = p.toString();
     history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
   }
@@ -71,15 +64,11 @@
     var q = els.q.value.trim().toLowerCase();
     var emotion = els.emotion.value;
     var voice = els.voice.value;
-    var onlyEnabled = els.enabled.checked;
-    var onlyDeal = els.deal.checked;
 
     var out = clips.filter(function (c) {
       if (q && c.text.toLowerCase().indexOf(q) === -1) return false;
       if (emotion && c.emotion !== emotion) return false;
-      if (voice && c.voice_id !== voice) return false;
-      if (onlyEnabled && !c.enabled) return false;
-      if (onlyDeal && !c.deal) return false;
+      if (voice && c.voiceId !== voice) return false;
       return true;
     });
 
@@ -87,11 +76,8 @@
     if (sort) {
       var desc = sort.charAt(0) === '-';
       var key = desc ? sort.slice(1) : sort;
-      var field = key === 'duration' ? 'duration_ms' : key;
       out.sort(function (a, b) {
-        var r = typeof a[field] === 'number'
-          ? a[field] - b[field]
-          : a[field].localeCompare(b[field], undefined, { sensitivity: 'base' });
+        var r = a[key].localeCompare(b[key], undefined, { sensitivity: 'base' });
         return desc ? -r : r;
       });
     }
@@ -99,14 +85,6 @@
   }
 
   // ---- rendering -----------------------------------------------------------
-
-  function flag(name, on) {
-    var span = document.createElement('span');
-    span.className = 'flag ' + (on ? 'on' : 'off');
-    span.textContent = name;
-    span.title = name + ': ' + on;
-    return span;
-  }
 
   function cell(className, label, child) {
     var td = document.createElement('td');
@@ -149,22 +127,13 @@
     tr.appendChild(cell('col-emotion', 'Emotion', em));
 
     var voice = document.createElement('code');
-    voice.textContent = c.voice_id;
+    voice.textContent = c.voiceId;
     tr.appendChild(cell('col-voice', 'Voice', voice));
-
-    tr.appendChild(cell('col-duration', 'Duration', (c.duration_ms / 1000).toFixed(2) + ' s'));
-
-    var flags = document.createElement('span');
-    flags.className = 'flags';
-    flags.appendChild(flag('truncated', c.truncated));
-    flags.appendChild(flag('deal', c.deal));
-    flags.appendChild(flag('enabled', c.enabled));
-    tr.appendChild(cell('col-flags', 'Flags', flags));
 
     var copies = document.createElement('span');
     copies.className = 'copies';
     copies.appendChild(copyButton('id', c.id));
-    copies.appendChild(copyButton('url', cdnUrl(c)));
+    copies.appendChild(copyButton('url', c.clipUrl));
     tr.appendChild(cell('col-copy', 'Copy', copies));
 
     return tr;
@@ -220,7 +189,7 @@
     var clip = clips.find(function (c) { return c.id === id; });
     if (!clip) return;
     playingId = id;
-    els.player.src = cdnUrl(clip);
+    els.player.src = clip.clipUrl;
     els.player.play().catch(function (err) {
       showToast('Could not play clip: ' + err.message);
       stop();
@@ -263,7 +232,7 @@
 
   function onFilterChange() { writeState(); render(); }
   els.q.addEventListener('input', onFilterChange);
-  [els.emotion, els.voice, els.sort, els.enabled, els.deal].forEach(function (el) {
+  [els.emotion, els.voice, els.sort].forEach(function (el) {
     el.addEventListener('change', onFilterChange);
   });
   $('filters').addEventListener('submit', function (e) { e.preventDefault(); });
@@ -272,8 +241,6 @@
     els.emotion.value = '';
     els.voice.value = '';
     els.sort.value = '';
-    els.enabled.checked = false;
-    els.deal.checked = false;
     onFilterChange();
   });
 
@@ -310,7 +277,7 @@
 
   // ---- init ----------------------------------------------------------------
 
-  fetch('./manifest.json', { cache: 'no-store' })
+  fetch(API, { cache: 'no-store' })
     .then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
@@ -318,7 +285,7 @@
     .then(function (data) {
       clips = data;
       fillSelect(els.emotion, countBy('emotion'));
-      fillSelect(els.voice, countBy('voice_id'));
+      fillSelect(els.voice, countBy('voiceId'));
       readState();
       render();
     })
@@ -326,6 +293,6 @@
       els.count.textContent = '';
       els.table.hidden = true;
       els.error.hidden = false;
-      els.error.textContent = 'Could not load manifest.json: ' + err.message;
+      els.error.textContent = 'Could not load ' + API + ': ' + err.message;
     });
 })();

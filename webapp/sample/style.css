@@ -7,10 +7,6 @@
   --accent: #2f6fed;
   --accent-fg: #ffffff;
   --playing: #e6efff;
-  --flag-on: #d8f3dc;
-  --flag-on-fg: #1b5e20;
-  --flag-off: #ececef;
-  --flag-off-fg: #6b6b70;
   --radius: 6px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -26,10 +22,6 @@
     --accent: #6c9cff;
     --accent-fg: #0b1a3a;
     --playing: #1e2a45;
-    --flag-on: #1f3d26;
-    --flag-on-fg: #a5e0b0;
-    --flag-off: #26262c;
-    --flag-off-fg: #9a9aa2;
   }
 }
 
@@ -69,7 +61,6 @@ body {
   border-radius: var(--radius);
   padding: 0.4rem 0.5rem;
 }
-.toggle { display: flex; align-items: center; gap: 0.35rem; padding-bottom: 0.4rem; white-space: nowrap; }
 
 .btn {
   font: inherit;
@@ -97,14 +88,9 @@ tr.clip:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
 tr.clip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 tr.clip.playing { background: var(--playing); }
 .col-play { width: 3rem; }
-.col-duration { white-space: nowrap; }
 .emotion { text-transform: capitalize; }
 code { font-family: var(--mono); font-size: 0.85em; }
 
-.flags { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
-.flag { font-size: 0.7rem; padding: 0.05rem 0.4rem; border-radius: 999px; }
-.flag.on { background: var(--flag-on); color: var(--flag-on-fg); }
-.flag.off { background: var(--flag-off); color: var(--flag-off-fg); text-decoration: line-through; }
 .copies { display: inline-flex; gap: 0.25rem; }
 
 .empty, .error { color: var(--muted); text-align: center; padding: 2rem 0; }
@@ -141,10 +127,10 @@ code { font-family: var(--mono); font-size: 0.85em; }
   .clips td { padding: 0.15rem 0; border: 0; }
   .clips td.col-play { position: absolute; left: 0.6rem; top: 0.6rem; width: auto; }
   .clips td.col-text { font-weight: 600; }
-  .clips td.col-emotion::before, .clips td.col-voice::before, .clips td.col-duration::before {
+  .clips td.col-emotion::before, .clips td.col-voice::before {
     content: attr(data-label) ": ";
     color: var(--muted);
     font-size: 0.8rem;
   }
-  .clips td.col-flags, .clips td.col-copy { padding-top: 0.35rem; }
+  .clips td.col-copy { padding-top: 0.35rem; }
 }

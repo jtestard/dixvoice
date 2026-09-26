@@ -1,8 +1,5 @@
-# Build context: webapp (so the library manifest can be copied in)
-# docker buildx build --platform linux/arm64 -f webapp/sample/Dockerfile -t <image> webapp
-
+# docker buildx build --platform linux/arm64 -t <image> webapp/sample
 FROM nginxinc/nginx-unprivileged:1.27-alpine
-COPY sample/nginx.conf /etc/nginx/conf.d/default.conf
-COPY sample/index.html sample/app.js sample/style.css /usr/share/nginx/html/
-COPY audio/library/manifest.json /usr/share/nginx/html/manifest.json
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY index.html app.js style.css /usr/share/nginx/html/
 EXPOSE 8080

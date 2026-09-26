@@ -246,7 +246,8 @@ deletes every room and game in progress, which is acceptable for the hackathon. 
 
 - **Configuration** through environment variables: `PORT` (default 8080), `AUDIO_SERVICE_URL`,
   `COMPANION_SERVICE_URL`, and `ALLOWED_ORIGINS`
-  (comma-separated, for CORS and the WebSocket origin check: `https://dixvoice-web.api.gcast.app`, the itch.io
+  (comma-separated, for CORS and the WebSocket origin check: `https://dixvoice-web.api.gcast.app`,
+  `https://dixvoice-sample.api.gcast.app`, the itch.io
   domains when published there, and `http://localhost:5173` for dev).
 - **Health check**: `GET /healthz` for liveness and readiness probes.
 - The server sends a WebSocket ping every ~20 s so idle connections stay open through the ingress.
@@ -291,10 +292,11 @@ exact same HTTP and WebSocket protocol as the web app, from a separate service a
 
 Root dir: ./webapp/sample
 
-A tiny static page, https://dixvoice-sample.api.gcast.app, to browse and play every clip of the audio library. It
-reads `webapp/audio/library/manifest.json` (copied into the image at build time) and plays each clip from the CDN.
-It shows each clip's text, emotion and voice, with search and filters, so the team can explore the library. Pure
-JavaScript, no build step. Deploy with `make deploy-sample`.
+A tiny static page, https://dixvoice-sample.api.gcast.app, to browse and play every sound the audio service knows
+(library and generated). It loads `https://dixvoice.api.gcast.app/audio/list` (the backend's proxy, so the backend's
+`ALLOWED_ORIGINS` includes the sample's origin) and plays each clip from its `clipUrl`. It shows each clip's text,
+emotion and voice, with search and filters, so the team can explore the sounds. Pure JavaScript, no build step.
+Deploy with `make deploy-sample`.
 
 ## Deployment
 
@@ -314,8 +316,7 @@ files in [`deploy/k8s/`](deploy/k8s) (no Terraform for now):
   (DNS-01 through Route53). DNS already points `*.api.gcast.app` to the Contour load balancer.
 - `backend.yaml` and `web.yaml`: Deployment, Service and Contour Ingress for each app. The backend ingress allows
   WebSocket upgrades (`projectcontour.io/websocket-routes`), like gcast-proxy.
-- `sample.yaml`: the sample clip browser (Deployment, Service, Contour Ingress). Its image is built from `webapp/`
-  so it can include `webapp/audio/library/manifest.json`.
+- `sample.yaml`: the sample clip browser (Deployment, Service, Contour Ingress).
 - `audio.yaml` and `companions.yaml`: Deployment and internal Service, no Ingress. Their API keys come from
   secrets created by `make audio-secret` and `make companions-secret` from files in the git-ignored `secret/` folder.
 - Cluster nodes are **arm64**: images are built with `docker buildx --platform linux/arm64`.

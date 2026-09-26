@@ -22,8 +22,7 @@ WEB_IMG     := $(REGISTRY)/dixvoice-web:latest
 AUDIO_IMG   := $(REGISTRY)/dixvoice-audio:latest
 COMP_IMG    := $(REGISTRY)/dixvoice-companions:latest
 SAMPLE_IMG  := $(REGISTRY)/dixvoice-sample:latest
-# sample is built from webapp/ so it can copy the audio library manifest.
-SAMPLE_ARGS := -f webapp/sample/Dockerfile webapp
+SAMPLE_ARGS := webapp/sample
 WEB_ARGS    := --build-arg VITE_BACKEND_URL=$(BACKEND_URL)
 KUBECTL     := kubectl --context $(CONTEXT)
 
