@@ -1,0 +1,7 @@
+# Context is webapp/: keep only the sample page and the library manifest.
+*
+!sample/
+!audio/library/manifest.json
+sample/README.md
+sample/Dockerfile
+sample/Dockerfile.dockerignore
