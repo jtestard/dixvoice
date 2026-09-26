@@ -15,7 +15,7 @@ const PHASE_TITLE: Record<Round['phase'], string> = {
   reveal: 'Reveal',
 }
 
-export function Game({ state, send }: Props) {
+export function Game({ state, send, tutorialEnabled, onToggleTutorial }: Props & { tutorialEnabled?: boolean; onToggleTutorial?: () => void }) {
   const [showScores, setShowScores] = useState(false)
   const { round } = state
   const you = state.you.playerId
@@ -35,9 +35,16 @@ export function Game({ state, send }: Props) {
             </span>
           )}
         </div>
-        <button type="button" className="btn btn--secondary" onClick={() => setShowScores((s) => !s)} aria-expanded={showScores}>
-          {showScores ? 'Hide scores' : 'Scores'}
-        </button>
+        <div className="game-header__actions">
+          {onToggleTutorial && (
+            <button type="button" className="btn btn--secondary" onClick={onToggleTutorial} aria-pressed={tutorialEnabled}>
+              How to play: {tutorialEnabled ? 'On' : 'Off'}
+            </button>
+          )}
+          <button type="button" className="btn btn--secondary" onClick={() => setShowScores((s) => !s)} aria-expanded={showScores}>
+            {showScores ? 'Hide scores' : 'Scores'}
+          </button>
+        </div>
       </header>
 
       {showScores && (

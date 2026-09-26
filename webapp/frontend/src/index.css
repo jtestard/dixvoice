@@ -106,6 +106,63 @@ h2 {
   flex: 1;
 }
 
+.tutorial-layout {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.tutorial-layout__content {
+  min-width: 0;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.tutorial-layout__aside {
+  padding: var(--space-4) var(--space-5) 0 var(--space-4);
+}
+
+.tutorial-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-secondary);
+  border: var(--line) solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transform: rotate(-1.5deg);
+  animation: cue-in var(--dur) var(--ease-out) both;
+  overflow-wrap: anywhere;
+}
+
+.tutorial-card__label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tutorial-card p {
+  font-size: 0.9375rem;
+}
+
+.tutorial-card__dismiss {
+  align-self: flex-end;
+}
+
+@keyframes cue-in {
+  from {
+    opacity: 0;
+    translate: 0 -8px;
+  }
+}
+
 .title {
   font-size: 2rem;
   font-weight: 800;
@@ -532,6 +589,12 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.game-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .game-header__code {
@@ -984,6 +1047,28 @@ h2 {
   }
   .hand--facedown {
     grid-template-columns: repeat(auto-fill, minmax(56px, 72px));
+  }
+}
+
+@media (min-width: 900px) {
+  .tutorial-layout--with-cue {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+    align-content: start;
+    gap: var(--space-4);
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+
+  .tutorial-layout__content {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .tutorial-layout__aside {
+    grid-column: 2;
+    grid-row: 1;
+    padding: var(--space-5) var(--space-5) 0 0;
   }
 }
 
