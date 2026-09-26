@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { roundResult } from '../roundResult'
+import { roleBanner } from '../tutorial'
 import type { ClientMessage, GameState, Player, Round } from '../types'
 import { ClipCard, FaceDownCard } from './ClipCard'
 import { PlayerList, PlayerName, Scoreboard, StopButton } from './Common'
+import { RoleStrip } from './TutorialCard'
 
 interface Props {
   state: GameState
@@ -16,16 +18,26 @@ const PHASE_TITLE: Record<Round['phase'], string> = {
   reveal: 'Reveal',
 }
 
-export function Game({ state, send, tutorialEnabled, onToggleTutorial }: Props & { tutorialEnabled?: boolean; onToggleTutorial?: () => void }) {
-  const [showScores, setShowScores] = useState(false)
+interface GameProps extends Props {
+  showScores?: boolean
+  onToggleScores?: () => void
+  tutorialEnabled?: boolean
+  onToggleTutorial?: () => void
+  onReplayTour?: () => void
+}
+
+export function Game({ state, send, showScores, onToggleScores, tutorialEnabled, onToggleTutorial, onReplayTour }: GameProps) {
+  const [localScores, setLocalScores] = useState(false)
+  const scoresOpen = showScores ?? localScores
+  const toggleScores = onToggleScores ?? (() => setLocalScores((s) => !s))
+  const banner = roleBanner(state)
   const { round } = state
   const you = state.you.playerId
   const isStoryteller = round?.storytellerId === you
-  const storyteller = state.players.find((p) => p.playerId === round?.storytellerId)
 
   return (
     <main className="screen screen--game">
-      <header className="game-header">
+      <header className="game-header" data-tutorial="header">
         <div className="game-header__meta">
           <span className="label">
             Room <strong className="game-header__code">{state.room.code}</strong>
@@ -42,23 +54,24 @@ export function Game({ state, send, tutorialEnabled, onToggleTutorial }: Props &
               How to play: {tutorialEnabled ? 'On' : 'Off'}
             </button>
           )}
-          <button type="button" className="btn btn--secondary" onClick={() => setShowScores((s) => !s)} aria-expanded={showScores}>
-            {showScores ? 'Hide scores' : 'Scores'}
+          {tutorialEnabled && onReplayTour && (
+            <button type="button" className="btn btn--secondary" onClick={onReplayTour}>
+              Replay tour
+            </button>
+          )}
+          <button type="button" className="btn btn--secondary" onClick={toggleScores} aria-expanded={scoresOpen}>
+            {scoresOpen ? 'Hide scores' : 'Scores'}
           </button>
         </div>
       </header>
 
-      {showScores && (
-        <section className="panel" aria-label="Scoreboard">
+      {scoresOpen && (
+        <section className="panel" aria-label="Scoreboard" data-tutorial="scores">
           <Scoreboard players={state.players} youId={you} targetScore={state.room.targetScore} />
         </section>
       )}
 
-      {round && (
-        <p className="storyteller-line">
-          Storyteller: <strong>{isStoryteller ? 'you' : <PlayerName player={storyteller} />}</strong>
-        </p>
-      )}
+      {banner && <RoleStrip banner={banner} detailed={tutorialEnabled ?? false} />}
 
       {round?.phase === 'storyteller' &&
         (isStoryteller ? <StorytellerPhase state={state} send={send} /> : <WaitForClue state={state} />)}
@@ -76,7 +89,7 @@ export function Game({ state, send, tutorialEnabled, onToggleTutorial }: Props &
 
 function Clue({ round }: { round: Round }) {
   return (
-    <blockquote className="clue">
+    <blockquote className="clue" data-tutorial="clue">
       <span className="clue__label">Clue</span>
       <div className="clue__text">{round.clue ?? '…'}</div>
     </blockquote>
@@ -85,7 +98,7 @@ function Clue({ round }: { round: Round }) {
 
 function Hand({ state, selected, onSelect, actionLabel, disabled }: { state: GameState; selected: string | null; onSelect?: (id: string) => void; actionLabel?: string; disabled?: boolean }) {
   return (
-    <section aria-label="Your hand">
+    <section aria-label="Your hand" data-tutorial="hand">
       <h2>Your hand</h2>
       <div className="hand hand--dealt">
         {state.you.hand.map((clip, i) => (
@@ -107,7 +120,7 @@ function Hand({ state, selected, onSelect, actionLabel, disabled }: { state: Gam
 function FaceDownTable({ state }: { state: GameState }) {
   const count = 1 + state.players.filter((p) => !p.isStoryteller && p.hasSubmitted).length
   return (
-    <section className="table-preview" aria-label={`${count} ${count > 1 ? 'clips' : 'clip'} on the table`}>
+    <section className="table-preview" aria-label={`${count} ${count > 1 ? 'clips' : 'clip'} on the table`} data-tutorial="table">
       <h2>On the table</h2>
       <div className="hand hand--facedown">
         {Array.from({ length: count }, (_, i) => (
@@ -210,7 +223,7 @@ function VotePhase({ state, send, isStoryteller }: Props & { isStoryteller: bool
       ) : (
         <p>Which clip is the storyteller&apos;s? You cannot vote for your own.</p>
       )}
-      <section aria-label="Table">
+      <section aria-label="Table" data-tutorial="vote">
         <div className="hand hand--flip">
           {round.table.map((clip, i) => {
             const own = clip.clipId === round.yourSubmission
@@ -248,7 +261,7 @@ function RevealPhase({ state, send }: Props) {
     <>
       <Clue round={round} />
       {reveal && (
-        <>
+        <div className="reveal" data-tutorial="reveal">
           {result && (
             <section className={`round-result round-result--${result.tone}`} aria-label="Your round result" role="status">
               <strong className="round-result__label">{result.label} · +{result.points}</strong>
@@ -304,7 +317,7 @@ function RevealPhase({ state, send }: Props) {
               </li>
             ))}
           </ul>
-        </>
+        </div>
       )}
       <button type="button" className="btn btn--primary btn--block" onClick={() => send({ type: 'next_round' })}>
         Next round
@@ -323,7 +336,9 @@ export function EndGame({ state, send }: Props) {
       <p className={`winner-line${winners.length ? won ? ' winner-line--success' : ' winner-line--failure' : ''}`}>
         {won ? 'You win!' : winners.length ? `${winners.join(' and ')} ${winners.length > 1 ? 'win' : 'wins'}!` : 'No winner.'}
       </p>
-      <Scoreboard players={state.players} youId={you} winnerIds={state.winnerIds} targetScore={state.room.targetScore} />
+      <section aria-label="Final scores" data-tutorial="scores">
+        <Scoreboard players={state.players} youId={you} winnerIds={state.winnerIds} targetScore={state.room.targetScore} />
+      </section>
       <h2>Players</h2>
       <PlayerList players={state.players} youId={you} />
       <div className="actions">

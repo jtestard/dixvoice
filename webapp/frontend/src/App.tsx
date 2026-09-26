@@ -3,11 +3,12 @@ import { EndGame, Game } from './components/Game'
 import { Home } from './components/Home'
 import { Lobby } from './components/Lobby'
 import { NoticeLabel } from './components/Common'
-import { TutorialLayout } from './components/TutorialCard'
+import { TutorialLayout, type TourControls } from './components/TutorialCard'
 import type { ClientMessage } from './types'
-import { tutorialCue, type TutorialScreen } from './tutorial'
+import { tourStep, tutorialCue, type TutorialScreen } from './tutorial'
 import { useGame } from './useGame'
 import { useQuickStart } from './useQuickStart'
+import { useTour } from './useTour'
 
 const TUTORIAL_KEY = 'dixvoice.tutorial'
 
@@ -31,6 +32,8 @@ export default function App() {
       return
     }
   }
+  const { explained, markExplained, skipTour, replayTour } = useTour()
+  const [showScores, setShowScores] = useState(false)
   const { quick, begin, dismiss } = useQuickStart({ token, state, conn, notice, send })
 
   const onJoined = useCallback(
@@ -59,6 +62,8 @@ export default function App() {
 
   const screen: TutorialScreen = !token ? 'home' : state?.room.status === 'lobby' ? 'lobby' : state?.room.status === 'finished' ? 'endGame' : 'game'
   const currentCue = tutorialEnabled ? tutorialCue(state, screen) : null
+  const step = tutorialEnabled ? tourStep(state, screen, { scoresOpen: showScores }, explained) : null
+  const tour: TourControls | null = step ? { step, onNext: () => markExplained(step.section), onSkip: skipTour } : null
 
   return (
     <>
@@ -80,7 +85,7 @@ export default function App() {
           </button>
         </div>
       )}
-      <TutorialLayout cue={currentCue}>
+      <TutorialLayout cue={currentCue} tour={tour}>
         {!token ? (
           <Home notice={notice} onDismissNotice={dismissNotice} onJoined={onJoined} onQuickStart={onQuickStart} />
         ) : !state ? (
@@ -92,7 +97,15 @@ export default function App() {
         ) : state.room.status === 'finished' ? (
           <EndGame state={state} send={sendAndMaybeLeave} />
         ) : (
-          <Game state={state} send={send} tutorialEnabled={tutorialEnabled} onToggleTutorial={toggleTutorial} />
+          <Game
+            state={state}
+            send={send}
+            showScores={showScores}
+            onToggleScores={() => setShowScores((s) => !s)}
+            tutorialEnabled={tutorialEnabled}
+            onToggleTutorial={toggleTutorial}
+            onReplayTour={replayTour}
+          />
         )}
       </TutorialLayout>
     </>

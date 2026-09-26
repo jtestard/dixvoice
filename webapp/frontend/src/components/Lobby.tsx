@@ -43,7 +43,7 @@ export function Lobby({ state, send, quick = null, onDismissQuick }: Props) {
   return (
     <main className="screen">
       <h1 className="title">Lobby</h1>
-      <section className="room-code" aria-label="Room code">
+      <section className="room-code" aria-label="Room code" data-tutorial="roomCode">
         <span className="label">Room code</span>
         <div className="room-code__value" data-testid="room-code">
           {state.room.code.split('').map((ch, i) => (
@@ -57,10 +57,12 @@ export function Lobby({ state, send, quick = null, onDismissQuick }: Props) {
         </button>
       </section>
 
-      <h2>
-        Players ({n}/{MAX_PLAYERS})
-      </h2>
-      <PlayerList players={state.players} youId={state.you.playerId} onRemoveCompanion={(playerId) => send({ type: 'remove_companion', playerId })} />
+      <section aria-label="Players" data-tutorial="players">
+        <h2>
+          Players ({n}/{MAX_PLAYERS})
+        </h2>
+        <PlayerList players={state.players} youId={state.you.playerId} onRemoveCompanion={(playerId) => send({ type: 'remove_companion', playerId })} />
+      </section>
       {quick && quickActive && (
         <p className="quick-progress" role="status" aria-live="polite" data-testid="quick-progress">
           <span className="spinner" aria-hidden="true" />
@@ -82,7 +84,7 @@ export function Lobby({ state, send, quick = null, onDismissQuick }: Props) {
 
       <div className="actions">
         <AddCompanionButton players={state.players} disabled={quickActive} onAdd={() => send({ type: 'add_companion' })} />
-        <button type="button" className="btn btn--primary btn--block" disabled={!canStart} onClick={() => send({ type: 'start_game' })}>
+        <button type="button" className="btn btn--primary btn--block" disabled={!canStart} onClick={() => send({ type: 'start_game' })} data-tutorial="start">
           Start game
         </button>
         <div className="row">

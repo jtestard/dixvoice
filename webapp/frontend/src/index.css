@@ -171,6 +171,102 @@ h2 {
   }
 }
 
+/* Guided tour: compact explanation card in the cue slot, highlight on the section it explains */
+.tutorial-card--tour {
+  background: var(--color-surface);
+  color: var(--color-text);
+  transform: rotate(0deg);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.tutorial-card--tour .tutorial-card__label {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.tutorial-card--tour p {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.tutorial-card__actions {
+  align-self: stretch;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tutorial-card__skip {
+  color: var(--color-muted);
+}
+
+.tutorial-target {
+  outline: var(--line-bold) solid var(--color-accent);
+  outline-offset: 6px;
+  border-radius: var(--radius);
+  animation: tour-pulse 1.2s var(--ease-out) infinite alternate;
+}
+
+@keyframes tour-pulse {
+  from {
+    outline-offset: 4px;
+  }
+  to {
+    outline-offset: 8px;
+  }
+}
+
+/* Role strip */
+.role-strip {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: var(--line) solid var(--color-border);
+  border-left: 8px solid var(--color-success);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  line-height: 1.35;
+}
+
+.role-strip--storyteller {
+  border-left-color: var(--color-accent);
+}
+
+.role-strip__tag {
+  flex-shrink: 0;
+  margin-top: 2px;
+  padding: 2px var(--space-2);
+  background: var(--color-success);
+  color: var(--color-success-text);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.role-strip--storyteller .role-strip__tag {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.role-strip p {
+  overflow-wrap: anywhere;
+}
+
+.home-quick,
+.home-rooms,
+.reveal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .title {
   font-size: 2rem;
   font-weight: 800;

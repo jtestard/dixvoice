@@ -110,30 +110,76 @@ Screens and features:
   "Stop".
 - A **Stop** button is available during the game too; it asks for confirmation in the page (no browser dialog).
 
-Tutorial (cue cards):
+Tutorial (role banner, guided tour, cue cards):
 
-- A **cue card** tells the player what to do right now. It is chosen from the state the frontend already has: the
-  screen (Home, Lobby, Game, End of game), the round phase, whether the player is the storyteller, and whether they
-  have already submitted or voted. Frontend only: no backend or protocol change.
-- **Dismissable**: "Got it" hides the current card until the moment changes (next phase, or submitted/voted). A "How
-  to play" toggle in the game header turns the tutorial off or on; it is on by default and the choice is remembered on
-  the device.
-- **Placement**: a side column next to the game on screens 900px wide and up; on phones, a compact card at the top of
-  the screen content. It never covers the clips or the action buttons. Styled as a Tape Deck cue card (see
-  [docs/design.md](docs/design.md)).
-- Round phases are labelled `STEP 1/4` to `STEP 4/4`. The cards say:
+The tutorial is frontend only (no backend or protocol change) and has three layers, all computed from the state the
+frontend already has: the screen (Home, Lobby, Game, End of game), the round phase, whether the player is the
+storyteller, and whether they have already submitted or voted. Styled as Tape Deck cue cards (see
+[docs/design.md](docs/design.md)) using the existing CSS variables.
+
+**Role banner.** A compact strip at the top of the game area, always visible during a round and separate from the cue
+card. It says who you are this round and what that means for you; while the tutorial is on it shows the full text,
+when the tutorial is off only the short first sentence. Companions in it are marked as bots.
+
+| Moment | Role banner |
+|---|---|
+| 1/4 Storyteller, you | You're the STORYTELLER this round. *Choose a clip and give a clue. You score 3 only if some players find your clip, but not all.* |
+| 1/4 Storyteller, player | You're a PLAYER. Ana is the storyteller. *Match their clue with one of your clips, then find their clip among everyone's.* |
+| 2/4 Submit, to do | You're a PLAYER. Ana is the storyteller. *Match Ana's clue with one of your clips. Later you'll look for theirs among everyone's.* |
+| 2/4 Submit, waiting | Waiting for Ben and Robo Chloé to pick a clip. *Storyteller: Every player is matching your clue with one clip from their hand. Player: Your clip is in. Once everyone has picked, you'll look for Ana's clip among all of them.* |
+| 3/4 Vote, to do | You're a PLAYER. Ana is the storyteller. *Find Ana's clip among everyone's. You can't vote for your own.* |
+| 3/4 Vote, waiting | Waiting for Ada and Robo Ben to vote. *Storyteller: You score 3 only if some players find your clip, but not all. Player: Your vote is in. You score 3 if you found Ana's clip, plus 1 per vote on yours.* |
+| 4/4 Reveal | Round 2 is over. You were the STORYTELLER. / Round 2 is over. Ana was the storyteller. *See who found the clip and the points won, then press Next round.* |
+
+Names lists read "Ada", "Ada and Ben", "Ada, Ben and Chloé", then "Ada, Ben, Chloé and 2 others".
+
+**Progressive guided tour.** The first time a section of the page appears, it is highlighted (an outline on the
+section, never covering its controls, no scrolling needed) and a short explanation card appears in the tutorial slot,
+one section at a time with a **Next** button. Sections appear as the game unfolds, so the tour builds up over the first
+game instead of front-loading everything. Sections are marked with stable `data-tutorial="…"` anchors; the next step
+is a pure function of (screen, phase, role, which sections are visible, which were already explained). Explained
+sections are remembered on the device (`localStorage`, wrapped in try/catch). **Skip tour** (or Escape) marks every
+section explained; **Replay tour**, next to the "How to play" toggle, forgets them all. The card is focusable, Next
+and Skip tour are real buttons, and the highlight pulse is disabled under `prefers-reduced-motion`. Sections in order
+of appearance:
+
+| Anchor | Where | Tour card |
+|---|---|---|
+| `nickname` | Home | This is how the other players will see you. It's remembered on this device. |
+| `quickstart` | Home | One tap starts a solo game against 3 AI companions. The best way to learn the game. |
+| `rooms` | Home | Create a room and share its code, or join a friend's room with the code they sent you. |
+| `roomCode` | Lobby | Share this code to invite friends: they type it on the Home screen to join you. |
+| `players` | Lobby | Everyone in the room. You need 4 to 8 players; AI companions are marked as bots. |
+| `start` | Lobby | Anyone can press Start once there are at least 4 players. |
+| `header` | Game | The round number and phase, the How to play toggle for these tips, and the Scores button. |
+| `role` | Game | This strip says who you are this round and what that means for you. It updates as the round moves on. |
+| `hand` | Storyteller phase, and submit for players | Your 6 clips are your cards. Tap one to listen. Nobody else hears your hand. Clips are 2 seconds; you get a fresh hand every round. |
+| `clue` | Submit onwards | Storyteller: Your clue, "a door in the rain". Every player now picks the clip from their hand that best fits it. Player: "a door in the rain" is Ana's clue for one of their clips. Everyone matches it with a clip of their own. |
+| `table` | Submit | The clips submitted so far, face down. Below, the player list shows who's done and who we're waiting for. |
+| `vote` | Vote | All submitted clips, shuffled anonymously. Find Ana's; you can't vote for your own. (Storyteller: The players are now trying to find yours among the others'.) |
+| `reveal` | Reveal | The scoring rule on this round's actual result, e.g. "Everyone found Ada's clip, so Ada scores 0 and everyone else 2." / "No one found …" / "You and Ben found Ada's clip (some, but not all), so Ada and each finder score 3." Then: Each clip shows its owner and who voted for it. Players also score 1 per vote their own clip received. |
+| `scores` | Scores panel, End of game | First to 10 points wins the game ("dix" means ten in French). |
+
+**Cue card.** Once the tour steps for the current moment are done, a cue card tells the player what to do right now.
+"Got it" hides it until the moment changes (next phase, or submitted/voted). The "How to play" toggle in the game
+header turns the whole tutorial (tour and cue cards) off or on; it is on by default and the choice is remembered on
+the device. Placement: a side column next to the game on screens 900px wide and up; on phones, a compact card at the
+top of the screen content that never covers the clips or the action buttons. Round phases are labelled `STEP 1/4` to
+`STEP 4/4`. The cards name the actual storyteller, the actual clue and how many players you're waiting for:
 
 | Moment | Cue card |
 |---|---|
 | Home | Pick a nickname, then Quick start with AI companions, create a room, or join a friend's with their 4-letter code. |
 | Lobby | Share the room code. You need 4 to 8 players, and anyone can press Start. Short on players? Add an AI companion. |
-| 1/4 Storyteller, you | You're the storyteller. Tap your clips to listen, pick one, and write a clue. Aim for a clue some players get, but not all. |
-| 1/4 Storyteller, others | The storyteller is choosing a clip and writing a clue. Listen to your hand in the meantime. |
-| 2/4 Submit, to do | Pick the clip from your hand that best fits the clue. It will be shuffled in with the storyteller's. |
-| 2/4 Submit, storyteller or done | Waiting for everyone to pick a clip. |
-| 3/4 Vote, to do | Listen to every clip and vote for the one you think is the storyteller's. You can't vote for your own. |
-| 3/4 Vote, storyteller or done | Waiting for the votes. Storyteller: you want some players to find your clip, but not all. |
-| 4/4 Reveal | If everyone or no one found the storyteller's clip, the storyteller scores 0 and everyone else 2. Otherwise the storyteller and each finder score 3. You also get 1 point per vote your clip received. |
+| 1/4 Storyteller, you | Tap your clips to listen, pick one, and write a clue for it. Aim for a clue some players get, but not all. |
+| 1/4 Storyteller, others | Ana is choosing a clip and writing a clue. Listen to your hand in the meantime. |
+| 2/4 Submit, to do | Pick the clip from your hand that best fits Ana's clue "a door in the rain". It will be shuffled in with Ana's. |
+| 2/4 Submit, storyteller | Waiting for 3 players to pick a clip. Their clips will be shuffled in with yours. |
+| 2/4 Submit, done | Waiting for 1 player to pick a clip. |
+| 3/4 Vote, to do | Listen to the 4 clips and vote for the one you think is Ana's. You can't vote for your own. |
+| 3/4 Vote, storyteller | Waiting for 3 players to vote. You want some of them to find your clip, but not all. |
+| 3/4 Vote, done | Waiting for 2 players to vote. |
+| 4/4 Reveal | You score +4 this round. Press Next round to keep going: first to 10 wins. |
 | End of game | First to 10 points wins. The session is complete. Leave the room, or press Stop to close it for everyone. |
 
 Audio playback:
