@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { Player } from '../types'
 
 export function BotBadge() {
@@ -35,11 +35,13 @@ interface PlayerListProps {
   youId: string
   waitingOn?: (p: Player) => boolean
   onRemoveCompanion?: (playerId: string) => void
+  /** `strip`: a single horizontally scrolling row of compact chips (phone game screens). */
+  variant?: 'list' | 'strip'
 }
 
-export function PlayerList({ players, youId, waitingOn, onRemoveCompanion }: PlayerListProps) {
+export function PlayerList({ players, youId, waitingOn, onRemoveCompanion, variant = 'list' }: PlayerListProps) {
   return (
-    <ul className="player-list">
+    <ul className={`player-list${variant === 'strip' ? ' player-list--strip' : ''}`} aria-label="Players">
       {players.map((p) => {
         const waiting = waitingOn ? waitingOn(p) : false
         return (
@@ -131,6 +133,30 @@ export function StopButton({ onStop, label = 'Stop' }: { onStop: () => void; lab
           Yes, stop
         </button>
       </div>
+    </div>
+  )
+}
+
+/** Bottom sheet on phones, centred dialog on wider screens. Closes on Escape or backdrop tap. */
+export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <section className="sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <header className="sheet__head">
+          <h2>{title}</h2>
+          <button type="button" className="btn btn--secondary btn--compact" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </header>
+        <div className="sheet__body">{children}</div>
+      </section>
     </div>
   )
 }
