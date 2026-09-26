@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dixvoice-backend
+  namespace: TBD # TODO: Kubernetes namespace
+  labels:
+    app: dixvoice-backend
+spec:
+  type: ClusterIP
+  selector:
+    app: dixvoice-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

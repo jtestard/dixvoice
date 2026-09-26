@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dixvoice-backend
+  namespace: TBD # TODO: Kubernetes namespace
+  labels:
+    app: dixvoice-backend
+spec:
+  # Exactly 1 replica: every room lives in this pod's memory.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dixvoice-backend
+  template:
+    metadata:
+      labels:
+        app: dixvoice-backend
+    spec:
+      containers:
+        - name: backend
+          image: TBD/dixvoice-backend:TBD # TODO: container registry, image name and tag
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: AUDIO_SERVICE_URL
+              value: "http://audio-service" # TODO: audio service URL in the cluster
+            - name: ALLOWED_ORIGINS
+              value: "https://html-classic.itch.zone,https://itch.io,http://localhost:5173"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 1
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
