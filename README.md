@@ -86,9 +86,9 @@ Layout and styling:
   mobile browser and in the itch.io embed, and scale up to tablet and desktop.
 - Touch-friendly: tap targets of at least 44px, no hover-only interactions, no horizontal scrolling. The hand of 6
   clips stacks or wraps on narrow screens.
-- **Basic styling only** for this first version: plain CSS, a neutral palette and system fonts, no UI framework or
-  custom assets. Keep colors and spacing in CSS variables so the game identity can be applied later without
-  restructuring the components.
+- **Visual identity**: the "Tape Deck" theme described in [docs/design.md](docs/design.md) (palette, fonts, logo and
+  components). Plain CSS, no UI framework. Colors, fonts, radii and shadows live in CSS variables in
+  `src/index.css`; components never hard-code them.
 
 Screens and features:
 
