@@ -597,7 +597,9 @@ func TestCompanions(t *testing.T) {
 		t.Fatal("companion did not score")
 	}
 
-	// Finished: removable; the room then lacks players.
+	// Finished: not addable (like Join), but removable (like Leave); the
+	// room then lacks players.
+	wantCode(t, r.CanAddCompanion(), CodeInvalidPhase)
 	if err := r.RemoveCompanion(bot.ID); err != nil {
 		t.Fatal(err)
 	}
