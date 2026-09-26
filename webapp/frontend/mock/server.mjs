@@ -12,6 +12,8 @@ const PORT = Number(process.env.PORT ?? 8080)
 const BOTS = Number(process.env.MOCK_BOTS ?? 0)
 const MAX_PLAYERS = 8
 const BOT_DELAY_MS = Number(process.env.MOCK_BOT_DELAY_MS ?? 1500)
+// Like the real companion service, a companion joins asynchronously a little after `add_companion` is accepted.
+const COMPANION_JOIN_DELAY_MS = Number(process.env.MOCK_COMPANION_DELAY_MS ?? 800)
 const TARGET_SCORE = 10
 const HAND_SIZE = 6
 const POOL_SIZE = Number(process.env.MOCK_POOL_SIZE ?? 240)
@@ -237,7 +239,7 @@ function handle(room, player, msg) {
   const inHand = (id) => player.hand.find((c) => c.clipId === id)
   switch (msg.type) {
     case 'start_game':
-      if (room.status === 'playing') return err('invalid_phase', 'Game already started')
+      if (room.status !== 'lobby') return err('invalid_phase', 'A game can only start in the lobby')
       if (room.players.length < 4) return err('not_enough_players', 'At least 4 players are needed')
       startGame(room)
       return null
@@ -248,7 +250,11 @@ function handle(room, player, msg) {
       if (room.status === 'playing') return err('invalid_phase', 'Cannot add a companion during a game')
       if (room.players.length >= MAX_PLAYERS) return err('room_full', 'No more room')
       if (process.env.MOCK_COMPANIONS_DOWN) return err('companion_unavailable', 'Companion service unavailable')
-      addCompanion(room)
+      setTimeout(() => {
+        if (rooms.get(room.code) !== room || room.status === 'playing' || room.players.length >= MAX_PLAYERS) return
+        addCompanion(room)
+        broadcast(room)
+      }, COMPANION_JOIN_DELAY_MS)
       return null
     }
     case 'remove_companion': {

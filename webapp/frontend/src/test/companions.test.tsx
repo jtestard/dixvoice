@@ -41,16 +41,13 @@ describe('AI companions in the lobby', () => {
 })
 
 describe('AI companions on the end-of-game screen', () => {
-  it('shows Add AI companion, remove buttons and bot badges', async () => {
+  it('shows bot badges without offering player changes after the session', () => {
     const send = vi.fn()
     const state = finishedState()
     state.players = [...state.players, COMPANION]
     render(<EndGame state={state} send={send} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Add AI companion' }))
-    expect(send).toHaveBeenCalledWith({ type: 'add_companion' })
-    await userEvent.click(screen.getByRole('button', { name: 'Remove Robo Ada' }))
-    expect(send).toHaveBeenCalledWith({ type: 'remove_companion', playerId: 'p5' })
-    // scoreboard + player list
+    expect(screen.queryByRole('button', { name: 'Add AI companion' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove Robo Ada' })).not.toBeInTheDocument()
     expect(screen.getAllByTestId('bot-badge')).toHaveLength(2)
   })
 

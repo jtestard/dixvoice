@@ -430,10 +430,11 @@ func TestEndToEndGame(t *testing.T) {
 				t.Fatalf("bad storyteller reveal %+v", res)
 			}
 		}
-		if ps[0].state.Room.Status == game.StatusPlaying {
-			ps[3].send(map[string]any{"type": "next_round"})
-			all(ps, func(p *player) { p.expectState() })
+		if ps[0].state.Room.Status != game.StatusPlaying || len(ps[0].state.WinnerIDs) != 0 {
+			t.Fatalf("reveal should remain playable before Next round: %+v", ps[0].state.Room)
 		}
+		ps[3].send(map[string]any{"type": "next_round"})
+		all(ps, func(p *player) { p.expectState() })
 	}
 	// Scores: storyteller 3, two finders 3(+1 possibly) per round: 10 reached
 	// after 3 or 4 rounds.
@@ -456,18 +457,9 @@ func TestEndToEndGame(t *testing.T) {
 	}
 	ps[1] = np
 
-	// New game in the same room: scores reset, dealt clips are all new.
+	// A completed session cannot start another game.
 	ps[0].send(map[string]any{"type": "start_game"})
-	all(ps, func(p *player) { p.expectState() })
-	if ps[0].state.Room.Status != game.StatusPlaying || ps[0].state.Round.Number != 1 || len(ps[0].state.WinnerIDs) != 0 {
-		t.Fatalf("new game state %+v", ps[0].state)
-	}
-	for _, s := range ps[0].state.Players {
-		if s.Score != 0 {
-			t.Fatal("scores not reset")
-		}
-	}
-	recordHands()
+	ps[0].expectError(game.CodeInvalidPhase)
 
 	// Stop: everyone gets room_closed, the socket closes, the room is gone.
 	ps[3].send(map[string]any{"type": "stop_game"})
@@ -722,4 +714,35 @@ func TestAddCompanionWithoutService(t *testing.T) {
 	_, ps := setupRoom(t, e, 1)
 	ps[0].send(map[string]any{"type": "add_companion"})
 	ps[0].expectError(game.CodeCompanionUnavailable)
+}
+
+func TestAnyOriginAllowed(t *testing.T) {
+	const site = "https://html-classic.itch.zone"
+	mock := httptest.NewServer((&mockaudio.Service{Count: 30}).Handler())
+	t.Cleanup(mock.Close)
+	srv := New(Config{AllowedOrigins: []string{"*"}}, game.NewManager(), audio.NewClient(mock.URL),
+		nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	backend := httptest.NewServer(srv.Handler())
+	t.Cleanup(backend.Close)
+
+	req, _ := http.NewRequest(http.MethodPost, backend.URL+"/rooms", strings.NewReader(`{"nickname":"Ana"}`))
+	req.Header.Set("Origin", site)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusCreated || resp.Header.Get("Access-Control-Allow-Origin") != site {
+		t.Fatalf("cors for any origin: %d %v", resp.StatusCode, resp.Header)
+	}
+	var body map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	wsURL := strings.Replace(backend.URL, "http://", "ws://", 1) + "/ws?token=" + body["token"]
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {site}}})
+	if err != nil {
+		t.Fatalf("ws from any origin rejected: %v", err)
+	}
+	_ = conn.CloseNow()
 }
