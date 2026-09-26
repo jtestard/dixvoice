@@ -23,14 +23,6 @@ type Response struct {
 	ClipURL string `json:"clipUrl"`
 }
 
-// Public is the subset of an AudioResponse the backend exposes to players.
-type Public struct {
-	ID      string `json:"id"`
-	ClipURL string `json:"clipUrl"`
-}
-
-func (r Response) Public() Public { return Public{ID: r.ID, ClipURL: r.ClipURL} }
-
 var ErrNotFound = errors.New("audio: not found")
 
 type Client struct {

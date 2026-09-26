@@ -9,7 +9,13 @@ import (
 func pool(n int) []Clip {
 	out := make([]Clip, n)
 	for i := range out {
-		out[i] = Clip{ID: fmt.Sprintf("c%d", i), URL: fmt.Sprintf("http://cdn/c%d.mp3", i)}
+		out[i] = Clip{
+			ID:      fmt.Sprintf("c%d", i),
+			URL:     fmt.Sprintf("http://cdn/c%d.mp3", i),
+			Text:    fmt.Sprintf("line %d", i),
+			Emotion: "eerie",
+			VoiceID: "6MFfc37kq0sBjBjy",
+		}
 	}
 	return out
 }
@@ -18,7 +24,7 @@ func mustJoin(t *testing.T, r *Room, n int) []*Player {
 	t.Helper()
 	ps := make([]*Player, n)
 	for i := range ps {
-		p, err := r.Join(fmt.Sprintf("player%d", i))
+		p, err := r.Join(fmt.Sprintf("player%d", i), false)
 		if err != nil {
 			t.Fatalf("join %d: %v", i, err)
 		}
@@ -69,9 +75,9 @@ func TestRoomLimits(t *testing.T) {
 		t.Fatal("room should still be in the lobby")
 	}
 	mustJoin(t, r, 5) // 8 total
-	_, err := r.Join("ninth")
+	_, err := r.Join("ninth", false)
 	wantCode(t, err, CodeRoomFull)
-	_, err = r.Join("   ")
+	_, err = r.Join("   ", false)
 	wantCode(t, err, CodeInvalidNickname)
 
 	if err := r.Start(pool(300)); err != nil {
@@ -82,7 +88,7 @@ func TestRoomLimits(t *testing.T) {
 
 func TestRoomLockedAfterStart(t *testing.T) {
 	r, ps := startedRoom(t, 4)
-	_, err := r.Join("late")
+	_, err := r.Join("late", false)
 	wantCode(t, err, CodeGameStarted)
 	_, err = r.Leave(ps[0].ID)
 	wantCode(t, err, CodeInvalidPhase)
@@ -99,7 +105,7 @@ func TestStartNeedsEnoughSounds(t *testing.T) {
 
 func TestManager(t *testing.T) {
 	m := NewManager()
-	_, _, err := m.JoinRoom("NOPE", "x")
+	_, _, err := m.JoinRoom("NOPE", "x", false)
 	wantCode(t, err, CodeRoomNotFound)
 
 	room, p1, err := m.CreateRoom("Ana")
@@ -109,7 +115,7 @@ func TestManager(t *testing.T) {
 	if len(room.Code) != codeLen {
 		t.Fatalf("bad code %q", room.Code)
 	}
-	_, p2, err := m.JoinRoom(room.Code, "Ben")
+	_, p2, err := m.JoinRoom(room.Code, "Ben", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +148,7 @@ func TestManager(t *testing.T) {
 	}
 
 	// Stop deletes the room and invalidates every token.
-	_, p3, _ := m.JoinRoom(room2.Code, "Dee")
+	_, p3, _ := m.JoinRoom(room2.Code, "Dee", false)
 	if !m.Delete(room2.Code) {
 		t.Fatal("delete failed")
 	}
@@ -367,7 +373,7 @@ func TestGameEndsAtTargetScore(t *testing.T) {
 	}
 	wantCode(t, r.NextRound(pool(300)), CodeInvalidPhase)
 	// The room stays locked once finished, but players may leave.
-	_, err := r.Join("late")
+	_, err := r.Join("late", false)
 	wantCode(t, err, CodeGameStarted)
 	// A new game can start in the same room with the same players.
 	if err := r.Start(pool(300)); err != nil {
@@ -428,6 +434,9 @@ func TestSnapshotVisibility(t *testing.T) {
 		for i, c := range s.You.Hand {
 			if c != p.Hand[i] {
 				t.Fatal("hand differs from the player's own hand")
+			}
+			if c.Text == "" || c.Emotion == "" || c.VoiceID == "" || c.URL == "" {
+				t.Fatalf("hand clip is not a full AudioResponse: %+v", c)
 			}
 		}
 		if s.Round == nil || s.Round.Clue != nil || s.Round.Reveal != nil || len(s.Round.Table) != 0 {
@@ -499,6 +508,11 @@ func TestSnapshotVisibility(t *testing.T) {
 	if joinOrder {
 		t.Fatal("table is in join order: not shuffled (seeded rng)")
 	}
+	for _, c := range s.Round.Table {
+		if c.Text == "" || c.Emotion == "" || c.VoiceID == "" || c.URL == "" {
+			t.Fatalf("table clip is not a full AudioResponse: %+v", c)
+		}
+	}
 	if *s.Round.YourSubmission != oth[0].Hand[0].ID {
 		t.Fatal("wrong yourSubmission")
 	}
@@ -537,6 +551,78 @@ func TestSnapshotVisibility(t *testing.T) {
 	ls = lobby.Snapshot(ps[0].ID)
 	if ls.Players[0].Connected || !ls.Players[1].Connected {
 		t.Fatal("connected flags wrong")
+	}
+}
+
+func TestCompanions(t *testing.T) {
+	r := NewRoom("TEST")
+	r.SeedRNG(1)
+	humans := mustJoin(t, r, 3)
+	if err := r.CanAddCompanion(); err != nil {
+		t.Fatal(err)
+	}
+	bot, err := r.Join("Robo Ada", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bot.IsCompanion || humans[0].IsCompanion {
+		t.Fatal("wrong IsCompanion flags")
+	}
+	s := r.Snapshot(humans[0].ID)
+	for _, ps := range s.Players {
+		if ps.IsCompanion != (ps.PlayerID == bot.ID) {
+			t.Fatalf("wrong isCompanion in snapshot: %+v", ps)
+		}
+	}
+
+	// Not a companion, unknown player.
+	wantCode(t, r.RemoveCompanion(humans[1].ID), CodeNotACompanion)
+	wantCode(t, r.RemoveCompanion("p99"), CodePlayerNotFound)
+
+	// Companions count toward the minimum and score normally.
+	if err := r.Start(pool(300)); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, r.CanAddCompanion(), CodeInvalidPhase)
+	wantCode(t, r.RemoveCompanion(bot.ID), CodeInvalidPhase)
+	for r.Status == StatusPlaying {
+		playRound(t, r)
+		if r.Status == StatusPlaying {
+			if err := r.NextRound(pool(300)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if r.player(bot.ID).Score == 0 {
+		t.Fatal("companion did not score")
+	}
+
+	// Finished: removable; the room then lacks players.
+	if err := r.RemoveCompanion(bot.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Players) != 3 || r.player(bot.ID) != nil {
+		t.Fatal("companion still in room")
+	}
+	wantCode(t, r.Start(pool(300)), CodeNotEnoughPlayers)
+
+	// Full room.
+	full := NewRoom("FULL")
+	mustJoin(t, full, MaxPlayers)
+	wantCode(t, full.CanAddCompanion(), CodeRoomFull)
+
+	// Manager: removing invalidates the token.
+	m := NewManager()
+	room, _, _ := m.CreateRoom("Ana")
+	_, c, err := m.JoinRoom(room.Code, "Robo Ben", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RemoveCompanion(room, c.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m.Lookup(c.Token); ok {
+		t.Fatal("removed companion token still valid")
 	}
 }
 
