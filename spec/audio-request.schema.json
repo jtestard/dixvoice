@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jtestard/dixvoice/spec/audio-request.schema.json",
+  "title": "AudioRequest",
+  "description": "Input of POST /audio: what to generate.",
+  "type": "object",
+  "required": [
+    "text",
+    "emotion"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "text": {
+      "description": "Text to generate speech for. Must be short enough to be spoken in at most 2 seconds.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50
+    },
+    "emotion": {
+      "description": "Emotion the text is spoken with (free text for now, e.g. \"joyful\", \"eerie\", \"angry\").",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 30
+    }
+  },
+  "examples": [
+    {
+      "text": "Is anyone there?",
+      "emotion": "eerie"
+    }
+  ]
+}

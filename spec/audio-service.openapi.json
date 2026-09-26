@@ -29,7 +29,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "./audio.schema.json"
+                    "$ref": "./audio-response.schema.json"
                   }
                 }
               }
@@ -59,7 +59,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "./audio.schema.json"
+                  "$ref": "./audio-response.schema.json"
                 }
               }
             }
@@ -80,7 +80,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateAudioRequest"
+                "$ref": "./audio-request.schema.json"
               },
               "example": {
                 "text": "Is anyone there?",
@@ -95,7 +95,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "./audio.schema.json"
+                  "$ref": "./audio-response.schema.json"
                 }
               }
             }
@@ -112,26 +112,6 @@
   },
   "components": {
     "schemas": {
-      "CreateAudioRequest": {
-        "type": "object",
-        "required": [
-          "text",
-          "emotion"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "text": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 50
-          },
-          "emotion": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 30
-          }
-        }
-      },
       "Error": {
         "type": "object",
         "required": [

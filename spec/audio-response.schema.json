@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jtestard/dixvoice/spec/audio-response.schema.json",
+  "title": "AudioResponse",
+  "description": "A generated speech clip of at most 2 seconds: the AudioRequest fields, plus the fields set by the service. Returned by POST /audio, GET /audio/{id} and GET /audio/list, for library and generated sounds alike.",
+  "type": "object",
+  "required": [
+    "id",
+    "text",
+    "emotion",
+    "voiceId",
+    "clipUrl"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "description": "Unique identifier (UUID v4).",
+      "type": "string",
+      "format": "uuid"
+    },
+    "text": {
+      "description": "Text the speech was generated from (same as in the AudioRequest).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50
+    },
+    "emotion": {
+      "description": "Emotion the text is spoken with (same as in the AudioRequest).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 30
+    },
+    "voiceId": {
+      "description": "Id of the Gradium voice the service chose for this clip.",
+      "type": "string",
+      "minLength": 1
+    },
+    "clipUrl": {
+      "description": "Public CDN URL of the mp3 file (CDN to be decided).",
+      "type": "string",
+      "format": "uri"
+    }
+  },
+  "examples": [
+    {
+      "id": "3f1c2b8e-9a4d-4e6f-8b21-5c7d9e0a1f34",
+      "text": "Is anyone there?",
+      "emotion": "eerie",
+      "voiceId": "gradium-voice-id",
+      "clipUrl": "https://cdn.example.com/audio/3f1c2b8e-9a4d-4e6f-8b21-5c7d9e0a1f34.mp3"
+    }
+  ]
+}
