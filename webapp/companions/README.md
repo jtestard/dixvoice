@@ -18,7 +18,7 @@ from their `text` and `emotion` with the Google Gemini API.
 - Moves happen after a random 2–6 s pause. Gemini (`generateContent` with a JSON response schema whose `clipId` is an
   enum of the valid clips) is given ~10 s; on error, timeout or invalid answer the companion plays a random valid
   move (and a canned clue). If the backend rejects a move (`error` message), it retries up to 3 times.
-- The storyteller move gets a longer budget (~20 s) because it runs the clue search described below.
+- The storyteller move gets a longer budget (~40 s) because it runs the clue search described below.
 - It never sends `start_game`, `stop_game`, `next_round`, `leave_room`, `add_companion` or `remove_companion`.
 - `room_closed` (room stopped or companion removed) ends the companion. If the socket drops, it reconnects with the
   same token with exponential backoff (0.5 s up to 10 s, 20 attempts); a `401` on reconnect means the room is gone
@@ -38,13 +38,14 @@ text, which every player finds. `internal/gemini/storyteller.go` therefore searc
 2. **Lexical filter** (Go, no model) — a candidate is rejected if it is longer than 8 words or shares any
    non-stopword with the clip's text or emotion, case-insensitively and after stripping a trailing `s`/`es`/`ed`/`ing`.
 3. **Simulated guessers** — for each surviving candidate, 3 parallel "guesser" calls (temperature 1) receive the clue
-   and the companion's whole hand, shuffled, without being told the answer, and pick the storyteller's clip. The share
-   of guessers that pick the target is `p`.
+   and the companion's whole hand, shuffled, without being told the answer, and estimate how a table of human players
+   who only heard the clips would split their votes (a probability per clip). The average probability given to the
+   target is `p`.
 4. **Expected score** — with `g` = players in the room minus 1, the storyteller's expected score under the binomial
    model is `3 * P(1 <= finders <= g-1) = 3 * (1 - (1-p)^g - p^g)`. The candidate maximising it wins, ties go to the
    lower `p`. The chosen `p` and expected score are logged at debug level.
 5. **Fallback** — if the candidates call fails, every candidate is filtered out, all guesser calls fail or the search
-   exceeds its 12 s timeout, the companion uses the previous single-shot prompt (`ChooseClueSingle`), and after that
+   exceeds its 25 s timeout, the companion uses the previous single-shot prompt (`ChooseClueSingle`), and after that
    the random clip + canned clue, so the game never stalls.
 
 **Learning within a game.** After each reveal in which the companion was the storyteller, it records how many of the

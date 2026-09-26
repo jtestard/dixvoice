@@ -194,6 +194,13 @@ func fakeGemini(t *testing.T, calls *atomic.Int64) *httptest.Server {
 				cands = append(cands, map[string]string{"clipId": enum[rand.IntN(len(enum))], "clue": clue})
 			}
 			text, _ = json.Marshal(map[string]any{"candidates": cands})
+		} else if items := req.GenerationConfig.ResponseSchema.Properties["votes"].Items; items != nil {
+			// A simulated guesser: split the votes over the table.
+			var votes []map[string]any
+			for _, id := range items.Properties["clipId"].Enum {
+				votes = append(votes, map[string]any{"clipId": id, "probability": rand.Float64()})
+			}
+			text, _ = json.Marshal(map[string]any{"votes": votes})
 		} else {
 			enum := req.GenerationConfig.ResponseSchema.Properties["clipId"].Enum
 			if len(enum) == 0 {

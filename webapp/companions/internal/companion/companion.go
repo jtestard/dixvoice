@@ -44,7 +44,7 @@ type Config struct {
 	// DecisionTimeout bounds each Brain call (10 s when zero).
 	DecisionTimeout time.Duration
 	// ClueTimeout bounds the storyteller's Brain call, which searches
-	// several candidate clues (20 s when zero).
+	// several candidate clues (40 s when zero).
 	ClueTimeout time.Duration
 	// MaxReconnects is the number of consecutive failed reconnects before the
 	// companion gives up (20 when zero).
@@ -66,7 +66,7 @@ func (c Config) withDefaults() Config {
 		c.DecisionTimeout = 10 * time.Second
 	}
 	if c.ClueTimeout == 0 {
-		c.ClueTimeout = 20 * time.Second
+		c.ClueTimeout = 40 * time.Second
 	}
 	if c.MaxReconnects == 0 {
 		c.MaxReconnects = 20

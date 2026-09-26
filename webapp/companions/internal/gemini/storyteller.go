@@ -17,7 +17,7 @@ import (
 const (
 	// DefaultClueTimeout bounds the candidate search (candidates call plus
 	// guesser simulation) before ChooseClue falls back to a single shot.
-	DefaultClueTimeout = 12 * time.Second
+	DefaultClueTimeout = 25 * time.Second
 	// MaxClueWords is the longest clue the lexical filter accepts.
 	MaxClueWords = 8
 	// GuessSamples is how many simulated guessers are asked per candidate.
@@ -233,48 +233,90 @@ func historyHint(history []protocol.StorytellerResult) string {
 
 // SimulateFinders estimates the chance that a player who hears the clue
 // picks target among the clips of hand (shuffled, standing in for the
-// table), by asking Gemini several times without telling it the answer.
+// table), by asking Gemini several times, without telling it the answer,
+// how a table of human players would split their votes.
 func (c *Client) SimulateFinders(ctx context.Context, clue string, hand []protocol.Clip, target string) (float64, error) {
 	var wg sync.WaitGroup
-	picks := make([]string, GuessSamples)
+	probs := make([]float64, GuessSamples)
 	errs := make([]error, GuessSamples)
 	for i := range GuessSamples {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			picks[i], errs[i] = c.guess(ctx, clue, shuffled(hand))
+			probs[i], errs[i] = c.guess(ctx, clue, shuffled(hand), target)
 		}(i)
 	}
 	wg.Wait()
-	found, ok := 0, 0
+	sum, ok := 0.0, 0
 	for i := range GuessSamples {
 		if errs[i] != nil {
 			continue
 		}
 		ok++
-		if picks[i] == target {
-			found++
-		}
+		sum += probs[i]
 	}
 	if ok == 0 {
 		return 0, errors.Join(errs...)
 	}
-	return float64(found) / float64(ok), nil
+	return sum / float64(ok), nil
 }
 
-// guess plays one voter: given the clue and the table, which clip is the
-// storyteller's?
-func (c *Client) guess(ctx context.Context, clue string, table []protocol.Clip) (string, error) {
+// guess plays the table: given the clue and the clips, how would the votes
+// of players who only heard the clips split? It returns the share of votes
+// for target.
+func (c *Client) guess(ctx context.Context, clue string, table []protocol.Clip, target string) (float64, error) {
 	prompt := `You are playing Dixit with 2-second sound clips instead of cards. The storyteller gave the clue:
 "` + clue + `"
-The clips on the table are described by the text that is spoken and its emotion. Exactly one of them is the
-storyteller's clip; the others are decoys. Which clip is the storyteller's? Follow your first instinct, like a
-player who only heard each clip once.
+The clips on the table are described by the text that is spoken and its emotion, but the players only HEARD each
+clip once, quickly, and cannot read the text. Exactly one clip is the storyteller's; every other clip was chosen by
+another player because it also fits the clue. Which clip is the storyteller's?
+Estimate how a table of ordinary human players would split their votes: give each clip the probability that a
+player votes for it. Do not be more certain than a human listening to two-second clips would be; spread the votes
+over every clip the clue could plausibly describe.
 
 Clips on the table:
 ` + describeClips(table) + `
-Answer with JSON: {"clipId": "<id from the table>"}.`
-	return c.chooseClip(ctx, prompt, table)
+Answer with JSON: {"votes": [{"clipId": "<id from the table>", "probability": <0 to 1>}, ...]} covering every clip.`
+	schema := map[string]any{
+		"type":     "OBJECT",
+		"required": []string{"votes"},
+		"properties": map[string]any{
+			"votes": map[string]any{
+				"type": "ARRAY",
+				"items": map[string]any{
+					"type":     "OBJECT",
+					"required": []string{"clipId", "probability"},
+					"properties": map[string]any{
+						"clipId":      map[string]any{"type": "STRING", "enum": clipIDs(table)},
+						"probability": map[string]any{"type": "NUMBER"},
+					},
+				},
+			},
+		},
+	}
+	var out struct {
+		Votes []struct {
+			ClipID      string  `json:"clipId"`
+			Probability float64 `json:"probability"`
+		} `json:"votes"`
+	}
+	if err := c.generate(ctx, prompt, schema, &out); err != nil {
+		return 0, err
+	}
+	var total, hit float64
+	for _, v := range out.Votes {
+		if !hasClip(table, v.ClipID) || v.Probability < 0 || math.IsNaN(v.Probability) || math.IsInf(v.Probability, 0) {
+			continue
+		}
+		total += v.Probability
+		if v.ClipID == target {
+			hit += v.Probability
+		}
+	}
+	if total <= 0 {
+		return 0, fmt.Errorf("%w: no votes", ErrInvalidAnswer)
+	}
+	return hit / total, nil
 }
 
 func shuffled(clips []protocol.Clip) []protocol.Clip {

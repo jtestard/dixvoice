@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
-	"math"
 	"math/rand/v2"
 	"net/http"
 	"os"
@@ -90,17 +89,17 @@ func evaluate(client *gemini.Client, name string, req protocol.ClueRequest, choo
 			clip = c
 		}
 	}
-	found, total := 0, 0
+	sum, total := 0.0, 0
 	for total < samples {
 		p, err := client.SimulateFinders(ctx, clue, req.Hand, id)
 		if err != nil {
 			fmt.Printf("  %-12s guessers failed: %v\n", name, err)
 			return result{}
 		}
-		found += int(math.Round(p * gemini.GuessSamples))
+		sum += p * gemini.GuessSamples
 		total += gemini.GuessSamples
 	}
-	p := float64(found) / float64(total)
+	p := sum / float64(total)
 	e := gemini.ExpectedScore(p, g)
 	reject := gemini.RejectClue(clue, clip)
 	flag := ""

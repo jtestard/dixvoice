@@ -85,7 +85,10 @@ func candidatesJSON(pairs ...string) string {
 	return string(b)
 }
 
-func clipJSON(id string) string { return fmt.Sprintf(`{"clipId":%q}`, id) }
+// voteJSON answers a guesser call with every vote on id.
+func voteJSON(id string) string {
+	return fmt.Sprintf(`{"votes":[{"clipId":%q,"probability":1}]}`, id)
+}
 
 // guessWith answers guesser calls so that the guessers find the target of
 // clue finds times out of every GuessSamples calls, cycling through decoys
@@ -102,11 +105,11 @@ func guessWith(s *scriptedGemini, prompt string, finders map[string]struct {
 	n := s.guesses[clue]
 	s.guesses[clue]++
 	if n%GuessSamples < f.finds {
-		return clipJSON(f.target)
+		return voteJSON(f.target)
 	}
 	for _, c := range hand {
 		if c.ClipID != f.target {
-			return clipJSON(c.ClipID)
+			return voteJSON(c.ClipID)
 		}
 	}
 	return ""
