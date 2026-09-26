@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { EndGame, Game } from './components/Game'
 import { Home } from './components/Home'
 import { Lobby } from './components/Lobby'
+import { NoticeLabel } from './components/Common'
 import type { ClientMessage } from './types'
 import { useGame } from './useGame'
 
@@ -25,7 +26,8 @@ export default function App() {
     <>
       {conn !== 'open' && (
         <div className="banner banner--conn" role="status">
-          {conn === 'reconnecting' ? 'Connection lost. Reconnecting…' : 'Connecting…'}
+          <NoticeLabel kind="warning" />
+          <span className="banner__text">{conn === 'reconnecting' ? 'Connection lost. Reconnecting…' : 'Connecting…'}</span>
           <button type="button" className="btn btn--link" onClick={() => setToken(null)}>
             Leave
           </button>
@@ -33,7 +35,8 @@ export default function App() {
       )}
       {notice && (
         <div className={`banner banner--${notice.kind}`} role="alert">
-          <span>{notice.text}</span>
+          <NoticeLabel kind={notice.kind} />
+          <span className="banner__text">{notice.text}</span>
           <button type="button" className="btn btn--link" onClick={dismissNotice} aria-label="Dismiss">
             ✕
           </button>
