@@ -1,0 +1,25 @@
+name: backend
+
+on:
+  push:
+    paths: ["webapp/backend/**", ".github/workflows/backend.yml"]
+  pull_request:
+    paths: ["webapp/backend/**", ".github/workflows/backend.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: webapp/backend/go.mod
+          cache-dependency-path: webapp/backend/go.sum
+      - name: gofmt
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then gofmt -d .; exit 1; fi
+      - run: go vet ./...
+      - run: go test -race ./...

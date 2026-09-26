@@ -37,7 +37,13 @@ func newEnv(t *testing.T) *env {
 // companionURL ("" for unset).
 func newEnvWithCompanions(t *testing.T, companionURL string) *env {
 	t.Helper()
-	mock := httptest.NewServer((&mockaudio.Service{Count: 300}).Handler())
+	return newEnvWith(t, &mockaudio.Service{Count: 300}, companionURL)
+}
+
+// newEnvWith starts the backend in front of the given mock audio service.
+func newEnvWith(t *testing.T, svc *mockaudio.Service, companionURL string) *env {
+	t.Helper()
+	mock := httptest.NewServer(svc.Handler())
 	t.Cleanup(mock.Close)
 	srv := New(Config{AllowedOrigins: []string{origin}}, game.NewManager(), audio.NewClient(mock.URL),
 		companion.NewClient(companionURL), slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -340,7 +346,7 @@ func TestEndToEndGame(t *testing.T) {
 	recordHands := func() {
 		t.Helper()
 		for _, p := range ps {
-			if len(p.state.You.Hand) != game.HandSize {
+			if len(p.state.You.Hand) != game.DealtSize {
 				t.Fatalf("%s hand size %d", p.id, len(p.state.You.Hand))
 			}
 			for _, c := range p.state.You.Hand {
@@ -684,7 +690,7 @@ func TestCompanions(t *testing.T) {
 	all(ps, func(p *player) { p.expectState(); p.expectState() })
 	ps[0].send(map[string]any{"type": "start_game"})
 	all(append(ps, bot), func(p *player) { p.expectState() })
-	if ps[0].state.Room.Status != game.StatusPlaying || len(bot.state.You.Hand) != game.HandSize {
+	if ps[0].state.Room.Status != game.StatusPlaying || len(bot.state.You.Hand) != game.DealtSize {
 		t.Fatalf("game did not start with a companion: %+v", ps[0].state.Room)
 	}
 	ps[0].send(map[string]any{"type": "add_companion"})
@@ -722,4 +728,94 @@ func TestAddCompanionWithoutService(t *testing.T) {
 	_, ps := setupRoom(t, e, 1)
 	ps[0].send(map[string]any{"type": "add_companion"})
 	ps[0].expectError(game.CodeCompanionUnavailable)
+}
+
+// startedGame sets up a room of n players and starts the game.
+func startedGame(t *testing.T, e *env, n int) []*player {
+	t.Helper()
+	_, ps := setupRoom(t, e, n)
+	ps[0].send(map[string]any{"type": "start_game"})
+	all(ps, func(p *player) { p.expectState() })
+	return ps
+}
+
+func storytellerOf(ps []*player) (*player, []*player) {
+	var st *player
+	var others []*player
+	for _, p := range ps {
+		if p.id == p.state.Round.StorytellerID {
+			st = p
+		} else {
+			others = append(others, p)
+		}
+	}
+	return st, others
+}
+
+func TestGenerateSound(t *testing.T) {
+	e := newEnv(t)
+	ps := startedGame(t, e, 4)
+	st, others := storytellerOf(ps)
+	if st.state.You.CustomSlot != game.CustomEmpty || len(st.state.You.Hand) != game.DealtSize {
+		t.Fatalf("custom slot should start empty: %+v", st.state.You)
+	}
+
+	// Bad input is refused right away, without touching the slot.
+	st.send(map[string]any{"type": "generate_sound", "text": "", "emotion": "angry"})
+	st.expectError(game.CodeInvalidSound)
+
+	st.send(map[string]any{"type": "generate_sound", "text": "Who ate my sandwich?", "emotion": "angry"})
+	all(ps, func(p *player) { p.expectState() }) // generating
+	if st.state.You.CustomSlot != game.CustomGenerating {
+		t.Fatalf("expected generating, got %s", st.state.You.CustomSlot)
+	}
+	all(ps, func(p *player) { p.expectState() }) // ready
+	if st.state.You.CustomSlot != game.CustomReady || len(st.state.You.Hand) != game.HandSize {
+		t.Fatalf("expected a ready custom clip: %+v", st.state.You)
+	}
+	custom := st.state.You.Hand[game.HandSize-1]
+	if !custom.Custom || custom.Text != "Who ate my sandwich?" || custom.Emotion != "angry" {
+		t.Fatalf("bad custom clip %+v", custom)
+	}
+	for _, p := range others {
+		if p.state.You.CustomSlot != game.CustomEmpty {
+			t.Fatal("another player's slot state leaked")
+		}
+	}
+	// The generated sound joins the audio service's list, like any sound.
+	resp, err := http.Get(e.backend.URL + "/audio/" + custom.ID)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("generated sound not served: %v %v", err, resp)
+	}
+
+	st.send(map[string]any{"type": "generate_sound", "text": "Again", "emotion": "calm"})
+	st.expectError(game.CodeCustomSlotBusy)
+
+	// The custom clip can be played like any other.
+	st.send(map[string]any{"type": "submit_clue", "clipId": custom.ID, "clue": "hungry"})
+	all(ps, func(p *player) { p.expectState() })
+	if st.state.Round.Phase != game.PhaseSubmit {
+		t.Fatalf("phase %s", st.state.Round.Phase)
+	}
+}
+
+func TestGenerateSoundFailure(t *testing.T) {
+	e := newEnvWith(t, &mockaudio.Service{Count: 300, GenerateStatus: http.StatusBadGateway}, "")
+	ps := startedGame(t, e, 4)
+	_, others := storytellerOf(ps)
+	p := others[0]
+
+	p.send(map[string]any{"type": "generate_sound", "text": "Is anyone there?", "emotion": "eerie"})
+	all(ps, func(q *player) { q.expectState() }) // generating
+	p.expectError(game.CodeGenerationFailed)
+	all(ps, func(q *player) { q.expectState() }) // failed
+	if p.state.You.CustomSlot != game.CustomFailed || len(p.state.You.Hand) != game.DealtSize {
+		t.Fatalf("expected a failed slot: %+v", p.state.You)
+	}
+	// A failed slot can be retried.
+	p.send(map[string]any{"type": "generate_sound", "text": "Is anyone there?", "emotion": "eerie"})
+	all(ps, func(q *player) { q.expectState() })
+	if p.state.You.CustomSlot != game.CustomGenerating {
+		t.Fatalf("retry: expected generating, got %s", p.state.You.CustomSlot)
+	}
 }
