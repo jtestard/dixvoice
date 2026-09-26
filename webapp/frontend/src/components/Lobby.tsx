@@ -1,19 +1,34 @@
 import { useState } from 'react'
 import type { ClientMessage, GameState } from '../types'
-import { AddCompanionButton, MAX_PLAYERS, PlayerList, StopButton } from './Common'
+import { QUICK_START_COMPANIONS, isQuickStartActive, type QuickStart } from '../useQuickStart'
+import { AddCompanionButton, MAX_PLAYERS, NoticeLabel, PlayerList, StopButton } from './Common'
 
 interface Props {
   state: GameState
   send: (msg: ClientMessage) => void
+  quick?: QuickStart | null
+  onDismissQuick?: () => void
+}
+
+function quickStartText(quick: QuickStart): string {
+  switch (quick.status) {
+    case 'adding':
+      return `Adding companions… ${quick.added}/${QUICK_START_COMPANIONS}`
+    case 'starting':
+      return 'Starting…'
+    case 'failed':
+      return quick.text
+  }
 }
 
 export const MIN_PLAYERS = 4
 export { MAX_PLAYERS }
 
-export function Lobby({ state, send }: Props) {
+export function Lobby({ state, send, quick = null, onDismissQuick }: Props) {
   const [copied, setCopied] = useState(false)
   const n = state.players.length
-  const canStart = n >= MIN_PLAYERS
+  const quickActive = isQuickStartActive(quick)
+  const canStart = n >= MIN_PLAYERS && !quickActive
 
   async function copy() {
     try {
@@ -46,10 +61,27 @@ export function Lobby({ state, send }: Props) {
         Players ({n}/{MAX_PLAYERS})
       </h2>
       <PlayerList players={state.players} youId={state.you.playerId} onRemoveCompanion={(playerId) => send({ type: 'remove_companion', playerId })} />
-      {!canStart && <p className="muted">Waiting for at least {MIN_PLAYERS} players to start. Add AI companions to fill the seats.</p>}
+      {quick && quickActive && (
+        <p className="quick-progress" role="status" aria-live="polite" data-testid="quick-progress">
+          <span className="spinner" aria-hidden="true" />
+          Quick start: {quickStartText(quick)}
+        </p>
+      )}
+      {quick?.status === 'failed' && (
+        <div className="notice notice--error" role="alert" data-testid="quick-failed">
+          <NoticeLabel kind="error" />
+          <span className="notice__text">{quickStartText(quick)}</span>
+          {onDismissQuick && (
+            <button type="button" className="btn btn--link" onClick={onDismissQuick} aria-label="Dismiss quick start message">
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+      {!quickActive && n < MIN_PLAYERS && <p className="muted">Waiting for at least {MIN_PLAYERS} players to start. Add AI companions to fill the seats.</p>}
 
       <div className="actions">
-        <AddCompanionButton players={state.players} onAdd={() => send({ type: 'add_companion' })} />
+        <AddCompanionButton players={state.players} disabled={quickActive} onAdd={() => send({ type: 'add_companion' })} />
         <button type="button" className="btn btn--primary btn--block" disabled={!canStart} onClick={() => send({ type: 'start_game' })}>
           Start game
         </button>
