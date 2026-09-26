@@ -36,7 +36,7 @@
       "minLength": 1
     },
     "clipUrl": {
-      "description": "Public CDN URL of the mp3 file (CDN to be decided).",
+      "description": "Public CDN URL of the mp3 file: https://dp1tbjxi4bfec.cloudfront.net/audio/{id}.mp3.",
       "type": "string",
       "format": "uri"
     }
@@ -47,7 +47,7 @@
       "text": "Is anyone there?",
       "emotion": "eerie",
       "voiceId": "gradium-voice-id",
-      "clipUrl": "https://cdn.example.com/audio/3f1c2b8e-9a4d-4e6f-8b21-5c7d9e0a1f34.mp3"
+      "clipUrl": "https://dp1tbjxi4bfec.cloudfront.net/audio/3f1c2b8e-9a4d-4e6f-8b21-5c7d9e0a1f34.mp3"
     }
   ]
 }

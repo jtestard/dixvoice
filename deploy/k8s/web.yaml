@@ -1,0 +1,78 @@
+# Web app (static Vite build served by nginx): https://dixvoice-web.api.gcast.app
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dixvoice-web
+  namespace: dixvoice
+  labels:
+    app: dixvoice-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dixvoice-web
+  template:
+    metadata:
+      labels:
+        app: dixvoice-web
+    spec:
+      containers:
+        - name: dixvoice-web
+          image: 398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-web:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dixvoice-web
+  namespace: dixvoice
+  labels:
+    app: dixvoice-web
+spec:
+  selector:
+    app: dixvoice-web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contour-dixvoice-web
+  namespace: dixvoice
+  labels:
+    app: dixvoice-web
+  annotations:
+    kubernetes.io/ingress.class: contour
+    projectcontour.io/timeout: 60s
+spec:
+  rules:
+    - host: dixvoice-web.api.gcast.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dixvoice-web
+                port:
+                  number: 8080
+  tls:
+    - hosts:
+        - dixvoice-web.api.gcast.app
+      secretName: dixvoice-tls

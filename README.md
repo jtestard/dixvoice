@@ -193,7 +193,7 @@ State snapshot:
   "room": { "code": "KXQP", "status": "lobby | playing | finished", "targetScore": 10 },
   "you": {
     "playerId": "p1",
-    "hand": [ { "clipId": "a12", "clipUrl": "https://cdn.example.com/audio/a12.mp3" } ]
+    "hand": [ { "clipId": "a12", "clipUrl": "https://dp1tbjxi4bfec.cloudfront.net/audio/a12.mp3" } ]
   },
   "players": [
     { "playerId": "p1", "nickname": "Ana", "connected": true, "score": 12,
@@ -206,7 +206,7 @@ State snapshot:
     "clue": "a door in the rain",
     "yourSubmission": "a12",
     "yourVote": null,
-    "table": [ { "clipId": "a12", "clipUrl": "https://cdn.example.com/audio/a12.mp3" } ],
+    "table": [ { "clipId": "a12", "clipUrl": "https://dp1tbjxi4bfec.cloudfront.net/audio/a12.mp3" } ],
     "reveal": {
       "results": [ { "clipId": "a12", "ownerId": "p1", "isStoryteller": true, "voterIds": ["p2"] } ],
       "points": { "p1": 3, "p2": 3 }
@@ -225,20 +225,15 @@ State snapshot:
 
 #### Deployment
 
-The backend ships as a container image (multi-stage `Dockerfile` in `./webapp/backend`: build the Go binary, then copy
-it into a minimal runtime image) and runs on the existing gcast Kubernetes cluster:
+The backend ships as a container image (multi-stage `Dockerfile` in `./webapp/backend`) and runs with exactly **1
+replica**: all rooms live in memory, so a second replica would not see the rooms of the first. A restart of the pod
+deletes every room and game in progress, which is acceptable for the hackathon. See [Deployment](#deployment).
 
-- **Deployment** with exactly **1 replica**: all rooms live in memory, so a second replica would not see the rooms of
-  the first.
-- **Service** exposing the HTTP and WebSocket endpoints inside the cluster. Public exposure (Ingress, HTTPS) comes at a
-  later stage; it will need to allow WebSocket upgrades and long-lived connections. Until then, test with
-  `kubectl port-forward`.
-- **Configuration** through environment variables: `PORT`, `AUDIO_SERVICE_URL`, and `ALLOWED_ORIGINS` (CORS and
-  WebSocket origin check; the itch.io domains the frontend is served from, plus `http://localhost:5173` for dev).
+- **Configuration** through environment variables: `PORT` (default 8080), `AUDIO_SERVICE_URL`, and `ALLOWED_ORIGINS`
+  (comma-separated, for CORS and the WebSocket origin check: `https://dixvoice-web.api.gcast.app`, the itch.io
+  domains when published there, and `http://localhost:5173` for dev).
 - **Health check**: `GET /healthz` for liveness and readiness probes.
-- Kubernetes manifests in `./webapp/backend/k8s`.
-
-A restart of the pod deletes every room and game in progress, which is acceptable for the hackathon.
+- The server sends a WebSocket ping every ~20 s so idle connections stay open through the ingress.
 
 #### Placeholders
 
@@ -246,8 +241,35 @@ To be filled in later:
 
 - Go version: `TBD` (use the latest stable).
 - WebSocket library: `TBD` (e.g. `github.com/coder/websocket`).
-- Container registry and image name: `TBD`.
-- Kubernetes namespace: `TBD`.
+
+## Deployment
+
+Everything runs on the gcast EKS cluster (context `gcast-eks`), in the `dixvoice` namespace, with plain Kubernetes
+files in [`deploy/k8s/`](deploy/k8s) (no Terraform for now):
+
+| App | URL | Image | Port |
+| --- | --- | --- | --- |
+| Web app (static build served by nginx) | https://dixvoice-web.api.gcast.app | `398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-web:latest` | 8080 |
+| Backend (Go, HTTP + WebSocket) | https://dixvoice.api.gcast.app | `398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-backend:latest` | 8080 |
+
+- `00-namespace.yaml`: the `dixvoice` namespace.
+- `01-certificate.yaml`: one cert-manager certificate for both hosts, from the `letsencrypt-prod` cluster issuer
+  (DNS-01 through Route53). DNS already points `*.api.gcast.app` to the Contour load balancer.
+- `backend.yaml` and `web.yaml`: Deployment, Service and Contour Ingress for each app. The backend ingress allows
+  WebSocket upgrades (`projectcontour.io/websocket-routes`), like gcast-proxy.
+- Cluster nodes are **arm64**: images are built with `docker buildx --platform linux/arm64`.
+- The web image is built with `--build-arg VITE_BACKEND_URL=https://dixvoice.api.gcast.app`. The same frontend can
+  still be packaged as a zip for itch.io.
+
+To deploy (needs docker buildx, the aws CLI logged in to the gcast AWS account, and kubectl on `gcast-eks`):
+
+```bash
+deploy/deploy.sh          # both apps
+deploy/deploy.sh backend  # or web
+```
+
+The script creates the ECR repositories if needed, builds and pushes the `latest` images, applies the manifests and
+restarts the deployments.
 
 ## Later iterations
 
@@ -303,7 +325,7 @@ fields, plus the fields set by the service.
 | `text` | string | Same as in the AudioRequest. |
 | `emotion` | string | Same as in the AudioRequest. |
 | `voiceId` | string | Id of the Gradium voice the service chose for this clip. |
-| `clipUrl` | string (URL) | Public CDN URL of the mp3 file (CDN to be decided). |
+| `clipUrl` | string (URL) | Public CDN URL of the mp3 file: `https://dp1tbjxi4bfec.cloudfront.net/audio/{id}.mp3`. |
 
 ```json
 {
@@ -311,7 +333,7 @@ fields, plus the fields set by the service.
   "text": "Is anyone there?",
   "emotion": "eerie",
   "voiceId": "gradium-voice-id",
-  "clipUrl": "https://cdn.example.com/audio/3f1c2b8e-9a4d-4e6f-8b21-5c7d9e0a1f34.mp3"
+  "clipUrl": "https://dp1tbjxi4bfec.cloudfront.net/audio/3f1c2b8e-9a4d-4e6f-8b21-5c7d9e0a1f34.mp3"
 }
 ```
 
@@ -334,9 +356,24 @@ fields, plus the fields set by the service.
 - Generated sounds must be indistinguishable from listed ones (every sound has a `voiceId`), so other players cannot
   tell a custom clip apart (needed for the custom sound iteration).
 
+### Clip storage and CDN
+
+Created with [`deploy/cdn.sh`](deploy/cdn.sh) (AWS CLI, safe to re-run):
+
+- **S3 bucket** `dixvoice-clips` (eu-west-1), private: all public access is blocked and only the CDN can read it.
+- **CloudFront distribution** `E29283DT2PF40K`, domain `dp1tbjxi4bfec.cloudfront.net`, HTTPS only, cached at the edge
+  (managed `CachingOptimized` policy), Europe and North America edge locations (`PriceClass_100`).
+- **Key layout**: the service uploads each clip to `s3://dixvoice-clips/audio/{id}.mp3` with
+  `Content-Type: audio/mpeg` and `Cache-Control: public, max-age=31536000, immutable`, and returns
+  `clipUrl = https://dp1tbjxi4bfec.cloudfront.net/audio/{id}.mp3`.
+- Responses allow CORS for `GET` from any origin, and the CDN strips `Last-Modified` so upload times never reveal which
+  clips were generated during a game.
+- **Upload permission**: IAM policy `dixvoice-clips-write` (put, get, delete under `audio/`, list the bucket), to attach
+  to the audio service's role (e.g. an EKS Pod Identity association for its service account) or user.
+
 ### To be decided
 
-- Service URL in the cluster and CDN domain.
+- Service URL in the cluster.
 
 For local development and tests, the backend includes a mock audio service (a fixture list following the schema and a
 few sample mp3 files) selected by setting `AUDIO_SERVICE_URL` to it.

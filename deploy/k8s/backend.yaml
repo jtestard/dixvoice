@@ -1,0 +1,96 @@
+# Game backend (Go, HTTP + WebSocket): https://dixvoice.api.gcast.app
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dixvoice-backend
+  namespace: dixvoice
+  labels:
+    app: dixvoice-backend
+spec:
+  # Exactly 1 replica: rooms live in memory.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dixvoice-backend
+  template:
+    metadata:
+      labels:
+        app: dixvoice-backend
+    spec:
+      containers:
+        - name: dixvoice-backend
+          image: 398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: AUDIO_SERVICE_URL
+              value: "http://dixvoice-audio.dixvoice.svc.cluster.local" # TBD: audio service address
+            - name: ALLOWED_ORIGINS
+              value: "https://dixvoice-web.api.gcast.app,http://localhost:5173"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dixvoice-backend
+  namespace: dixvoice
+  labels:
+    app: dixvoice-backend
+spec:
+  selector:
+    app: dixvoice-backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contour-dixvoice-backend
+  namespace: dixvoice
+  labels:
+    app: dixvoice-backend
+  annotations:
+    kubernetes.io/ingress.class: contour
+    # Same as gcast-proxy. Envoy's cluster-wide idle timeouts (6h) keep WebSockets open.
+    projectcontour.io/timeout: 60s
+    projectcontour.io/websocket-routes: /
+spec:
+  rules:
+    - host: dixvoice.api.gcast.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dixvoice-backend
+                port:
+                  number: 8080
+  tls:
+    - hosts:
+        - dixvoice.api.gcast.app
+      secretName: dixvoice-tls
