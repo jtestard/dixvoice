@@ -1,0 +1,164 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Dixvoice audio generator microservice",
+    "version": "0.1.0",
+    "description": "Lists, returns and generates short speech clips (at most 2 seconds). The mp3 files are served by a CDN at each object's clipUrl, not by this service.",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://audio-service",
+      "description": "Placeholder, to be decided"
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/audio/list": {
+      "get": {
+        "operationId": "listAudio",
+        "summary": "List all available audio objects",
+        "responses": {
+          "200": {
+            "description": "All audio objects, including generated ones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "./audio.schema.json"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/audio/{id}": {
+      "get": {
+        "operationId": "getAudio",
+        "summary": "Get one audio object",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The audio object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./audio.schema.json"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/audio": {
+      "post": {
+        "operationId": "createAudio",
+        "summary": "Generate a new audio object from text and emotion",
+        "description": "Synchronous: responds once the mp3 is available at clipUrl. Generation can take several seconds; callers should use a timeout of at least 30 seconds.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAudioRequest"
+              },
+              "example": {
+                "text": "Is anyone there?",
+                "emotion": "eerie"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The generated audio object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./audio.schema.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "502": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateAudioRequest": {
+        "type": "object",
+        "required": [
+          "text",
+          "emotion"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "emotion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Machine-readable code, e.g. invalid_request, not_found, generation_failed."
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

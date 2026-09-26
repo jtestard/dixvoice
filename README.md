@@ -30,7 +30,7 @@ Terms, from largest to smallest:
 - **Hand**: 6 slots per player.
   - 5 **dealt** slots, filled from the room's pool (the audio service's list of existing sounds, shuffled). A clip is
     never dealt twice in a session, so it is never in two hands at once.
-  - 1 **custom** slot, filled by the player by generating their own sound (text + tonality). It is optional: it stays
+  - 1 **custom** slot, filled by the player by generating their own sound (text + emotion). It is optional: it stays
     empty until the player generates a sound, which they can do at any time during the round while it is empty (until
     they have submitted their clip). Generation runs in the background and never blocks the round.
 - **Round**, the same phases as Dixit:
@@ -98,7 +98,8 @@ Screens and features:
   players), a Stop button and a Leave button.
 - **Hand**: the player's 6 slots as cards; tapping a card plays its sound. The custom slot shows its state: empty (with
   a "Create a sound" action), generating, ready, or failed (with a retry). Only the owner sees which clip is custom.
-- **Create a sound**: a form with a text field and a tonality field, sent to the backend.
+- **Create a sound**: a form with a text field (the words to speak, max 50 characters) and an emotion field (max 30
+  characters), sent to the backend.
 - **Round screens**, one per phase (see Game rules): the storyteller picks a clip and writes a clue; the others pick a
   clip; everyone votes on the shuffled clips; the reveal shows owners, votes and points won. Show who has already
   submitted or voted so players know who they are waiting for.
@@ -108,14 +109,13 @@ Screens and features:
 
 Audio playback:
 
-- Clips are fetched directly from the audio service with `GET {AUDIO_SERVICE_URL}/audio/{id}` and played with an HTML
-  `<audio>` element. The frontend never calls `POST /audio` (the backend does).
+- Every clip in the state comes with its `clipUrl` (a CDN URL); the frontend plays it with an HTML `<audio>` element.
+  The frontend never calls `POST /audio` (the backend does).
 - Browsers block audio until the user interacts with the page, so playback always starts from a tap.
 
 Configuration (build-time env vars):
 
 - `VITE_BACKEND_URL`: base URL of the backend (HTTP and WebSocket).
-- `VITE_AUDIO_SERVICE_URL`: base URL of the audio service.
 - Vite `base: './'` so the built bundle works from the itch.io zip upload.
 
 On itch.io, the upload must have "Mobile friendly" checked and a fullscreen button enabled.
@@ -171,7 +171,7 @@ Client to server (`{"type": ..., ...}`):
 | `start_game` | | lobby or finished, 4+ players |
 | `stop_game` | | any time |
 | `leave_room` | | lobby or finished |
-| `generate_sound` | `text`, `tonality` | custom slot empty |
+| `generate_sound` | `text`, `emotion` | custom slot empty |
 | `submit_clue` | `clipId`, `clue` | storyteller, phase `storyteller` |
 | `submit_clip` | `clipId` | non-storyteller, phase `submit`, once |
 | `vote` | `clipId` | non-storyteller, phase `vote`, once, not own clip |
@@ -194,7 +194,7 @@ State snapshot:
   "room": { "code": "KXQP", "status": "lobby | playing | finished", "targetScore": 10 },
   "you": {
     "playerId": "p1",
-    "hand": [ { "clipId": "a12", "custom": false } ],
+    "hand": [ { "clipId": "a12", "clipUrl": "https://cdn.example.com/audio/a12.mp3", "custom": false } ],
     "customSlot": "empty | generating | ready | failed"
   },
   "players": [
@@ -208,7 +208,7 @@ State snapshot:
     "clue": "a door in the rain",
     "yourSubmission": "a12",
     "yourVote": null,
-    "table": [ { "clipId": "a12" }, { "clipId": "b07" } ],
+    "table": [ { "clipId": "a12", "clipUrl": "https://cdn.example.com/audio/a12.mp3" } ],
     "reveal": {
       "results": [ { "clipId": "a12", "ownerId": "p1", "isStoryteller": true, "voterIds": ["p2"] } ],
       "points": { "p1": 3, "p2": 3 }
@@ -220,6 +220,8 @@ State snapshot:
 
 - `round` is `null` in the lobby. `clue` is `null` until the storyteller submits it. `table` is empty until the vote
   phase. `reveal` is `null` until the reveal phase.
+- `clipId` is the audio object's UUID (`id`) and `clipUrl` its CDN URL. The `text` and `emotion` of clips are never
+  sent to players.
 - `hand` has up to 6 entries; `custom: true` marks the custom slot and is only ever sent to its owner.
 - `winnerIds` is filled when `room.status` is `finished`.
 
@@ -251,25 +253,49 @@ To be filled in later:
 
 ## Audio Generator Microservice
 
-The audio generator microservice has 3 endpoints:
+The contract is defined in JSON in [`spec/`](spec):
 
-- GET: /audio/list: list all possible sound objects in JSON
-- GET: /audio/{id}: returns the mp3 file for a given audio sound
-- POST: /audio: create a new sound from text and tonality
+- [`spec/audio.schema.json`](spec/audio.schema.json): JSON Schema of an audio object.
+- [`spec/audio-service.openapi.json`](spec/audio-service.openapi.json): OpenAPI 3.1 contract of the service.
 
-The frontend uses the GET endpoints; only the backend calls the POST endpoint. The service must therefore allow CORS
-from the frontend's origins for the GET endpoints.
+### Audio object
 
-### Placeholder schemas
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string (UUID) | Unique identifier. |
+| `text` | string (1–50 chars) | Text the speech is generated from; short enough to be spoken in at most 2 seconds. |
+| `emotion` | string (1–30 chars) | Emotion the text is spoken with, free text for now (e.g. `joyful`, `eerie`). |
+| `clipUrl` | string (URL) | Public CDN URL of the mp3 file (CDN to be decided). |
 
-Until the audio service defines its own, the web app assumes:
+```json
+{
+  "id": "3f1c2b8e-9a4d-4e6f-8b21-5c7d9e0a1f34",
+  "text": "Is anyone there?",
+  "emotion": "eerie",
+  "clipUrl": "https://cdn.example.com/audio/3f1c2b8e-9a4d-4e6f-8b21-5c7d9e0a1f34.mp3"
+}
+```
 
-- `GET /audio/list` → `200 [ { "id": "a12" } ]` (other fields are ignored by the web app).
-- `GET /audio/{id}` → `200` with `Content-Type: audio/mpeg`, a clip of at most 2 seconds.
-- `POST /audio` with `{ "text": "a door creaking in the rain", "tonality": "eerie" }` → `201 { "id": "c31" }`.
-  Generation may take several seconds. `tonality` is free text for now.
-- Generated sounds must be indistinguishable from listed ones through the ids and the GET endpoints, so other players
-  cannot tell a custom clip apart.
+### Endpoints
 
-For local development and tests, the backend includes a mock audio service (a fixture list and a few sample mp3 files)
-selected by setting `AUDIO_SERVICE_URL` to it.
+| Method and path | Body | Response |
+| --- | --- | --- |
+| `GET /audio/list` | | `200`: array of audio objects, generated ones included |
+| `GET /audio/{id}` | | `200`: the audio object; `404` if unknown |
+| `POST /audio` | `{"text": "Is anyone there?", "emotion": "eerie"}` | `201`: the new audio object; `400` if invalid, `502` if generation fails |
+
+- The mp3 files are served by the CDN at `clipUrl`, not by the service itself.
+- `POST /audio` is synchronous: it responds once the mp3 is available at `clipUrl`. Generation can take several
+  seconds, so callers use a timeout of at least 30 seconds.
+- Errors are `{"error": "not_found", "message": "..."}`.
+- No authentication for now: the service is only reachable inside the cluster.
+- Only the backend calls `POST /audio`. The web app gets everything it needs from the backend's state (including each
+  clip's `clipUrl`), so the frontend does not have to call the service; it may use the GET endpoints if useful.
+- Generated sounds must be indistinguishable from listed ones, so other players cannot tell a custom clip apart.
+
+### To be decided
+
+- Service URL in the cluster and CDN domain.
+
+For local development and tests, the backend includes a mock audio service (a fixture list following the schema and a
+few sample mp3 files) selected by setting `AUDIO_SERVICE_URL` to it.
