@@ -746,3 +746,21 @@ func TestAnyOriginAllowed(t *testing.T) {
 	}
 	_ = conn.CloseNow()
 }
+
+// A browser only sees close code 1006 when the handshake fails, so an unknown token must be reported as a 4xxx close
+// code after the upgrade: the frontend treats those as permanent and stops reconnecting.
+func TestWebSocketUnknownTokenClosesWith4001(t *testing.T) {
+	e := newEnv(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	wsURL := strings.Replace(e.backend.URL, "http://", "ws://", 1) + "/ws?token=stale"
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {origin}}})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.CloseNow()
+	_, _, err = conn.Read(ctx)
+	if got := websocket.CloseStatus(err); got != StatusInvalidToken {
+		t.Fatalf("close status: got %d (%v), want %d", got, err, StatusInvalidToken)
+	}
+}

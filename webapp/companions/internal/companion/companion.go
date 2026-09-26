@@ -231,10 +231,20 @@ func (c *Companion) Run(ctx context.Context) error {
 			return nil
 		case ctx.Err() != nil:
 			return ctx.Err()
+		case isPermanentClose(err):
+			c.log.Info("companion stopped: token rejected", "close", websocket.CloseStatus(err))
+			return fmt.Errorf("%w (close %d)", ErrTokenRejected, websocket.CloseStatus(err))
 		default:
 			c.log.Warn("socket dropped, reconnecting", "err", err)
 		}
 	}
+}
+
+// isPermanentClose reports whether the backend closed the socket with a 4xxx
+// code, which it uses for permanent rejections such as an unknown token.
+func isPermanentClose(err error) bool {
+	code := websocket.CloseStatus(err)
+	return code >= 4000 && code < 5000
 }
 
 func (c *Companion) dial(ctx context.Context) (*websocket.Conn, error) {

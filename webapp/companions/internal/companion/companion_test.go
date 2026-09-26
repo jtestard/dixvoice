@@ -353,17 +353,24 @@ func TestReconnectRedoesInterruptedMove(t *testing.T) {
 }
 
 func TestStopsWhenTokenRejected(t *testing.T) {
-	b := newFakeBackend(t)
-	_, fc, done := startCompanion(t, b, &scriptBrain{})
-	b.forget(fc.token)
-	fc.drop()
-	select {
-	case err := <-done:
-		if !errors.Is(err, ErrTokenRejected) {
-			t.Fatalf("got %v", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("companion kept retrying")
+	// The backend closes an unknown token with 4001 after the upgrade (so browsers
+	// see the code); older backends answered the handshake with 401. Both are final.
+	for name, rejectHTTP := range map[string]bool{"close4001": false, "http401": true} {
+		t.Run(name, func(t *testing.T) {
+			b := newFakeBackend(t)
+			b.rejectHTTP = rejectHTTP
+			_, fc, done := startCompanion(t, b, &scriptBrain{})
+			b.forget(fc.token)
+			fc.drop()
+			select {
+			case err := <-done:
+				if !errors.Is(err, ErrTokenRejected) {
+					t.Fatalf("got %v", err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("companion kept retrying")
+			}
+		})
 	}
 }
 

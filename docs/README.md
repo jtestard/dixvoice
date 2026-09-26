@@ -198,7 +198,9 @@ HTTP:
 Join errors: `404 room_not_found`, `409 room_full`, `409 game_started`, `400 invalid_nickname`.
 
 WebSocket: `GET /ws?token=...`. The token identifies both the player and the room. Reconnecting with the same token
-gives the player their seat back. On connection, the server immediately sends a `state` message.
+gives the player their seat back. On connection, the server immediately sends a `state` message. An unknown token (the room was
+deleted or the server restarted) is accepted and immediately closed with code `4001`: browsers hide the HTTP status of a
+failed handshake, and clients treat any 4xxx close code as permanent and stop reconnecting.
 
 Client to server (`{"type": ..., ...}`):
 

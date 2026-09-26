@@ -263,10 +263,28 @@ type roomClosed struct {
 	Reason string `json:"reason"`
 }
 
+// StatusInvalidToken closes a WebSocket whose session token is unknown (the room was deleted or the server restarted).
+const StatusInvalidToken websocket.StatusCode = 4001
+
+func isWebSocketUpgrade(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+}
+
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	seat, ok := s.rooms.Lookup(r.URL.Query().Get("token"))
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorBody{Code: "invalid_token", Message: "unknown session token"})
+		// Browsers hide the HTTP status of a failed handshake (the client only sees close code 1006 and retries
+		// forever), so upgrade requests are accepted and closed with a 4xxx code the client treats as permanent.
+		if !isWebSocketUpgrade(r) {
+			writeJSON(w, http.StatusUnauthorized, errorBody{Code: "invalid_token", Message: "unknown session token"})
+			return
+		}
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: s.hosts})
+		if err != nil {
+			s.log.Info("websocket accept failed", "err", err)
+			return
+		}
+		_ = conn.Close(StatusInvalidToken, "Your session has expired. Please join the room again.")
 		return
 	}
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: s.hosts})
