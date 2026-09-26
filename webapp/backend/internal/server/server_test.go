@@ -715,3 +715,34 @@ func TestAddCompanionWithoutService(t *testing.T) {
 	ps[0].send(map[string]any{"type": "add_companion"})
 	ps[0].expectError(game.CodeCompanionUnavailable)
 }
+
+func TestAnyOriginAllowed(t *testing.T) {
+	const site = "https://html-classic.itch.zone"
+	mock := httptest.NewServer((&mockaudio.Service{Count: 30}).Handler())
+	t.Cleanup(mock.Close)
+	srv := New(Config{AllowedOrigins: []string{"*"}}, game.NewManager(), audio.NewClient(mock.URL),
+		nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	backend := httptest.NewServer(srv.Handler())
+	t.Cleanup(backend.Close)
+
+	req, _ := http.NewRequest(http.MethodPost, backend.URL+"/rooms", strings.NewReader(`{"nickname":"Ana"}`))
+	req.Header.Set("Origin", site)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusCreated || resp.Header.Get("Access-Control-Allow-Origin") != site {
+		t.Fatalf("cors for any origin: %d %v", resp.StatusCode, resp.Header)
+	}
+	var body map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	wsURL := strings.Replace(backend.URL, "http://", "ws://", 1) + "/ws?token=" + body["token"]
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {site}}})
+	if err != nil {
+		t.Fatalf("ws from any origin rejected: %v", err)
+	}
+	_ = conn.CloseNow()
+}
