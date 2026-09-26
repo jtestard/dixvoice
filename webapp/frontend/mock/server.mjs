@@ -435,7 +435,7 @@ server.on('upgrade', (req, socket, head) => {
     const auth = tokens.get(url.searchParams.get('token') ?? '')
     const room = auth && rooms.get(auth.code)
     const player = room?.players.find((p) => p.playerId === auth.playerId)
-    if (!player) return ws.close(4001, 'unknown token')
+    if (!player) return ws.close(4001, 'Your session has expired. Please join the room again.')
     if (player.socket && player.socket !== ws) player.socket.close(1000, 'replaced')
     player.socket = ws
     player.connected = true

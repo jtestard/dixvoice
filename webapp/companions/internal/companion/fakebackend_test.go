@@ -28,6 +28,7 @@ type fakeBackend struct {
 	joinCode   string // room code of the last join
 	tokens     map[string]string
 	nextPlayer int
+	rejectHTTP bool // unknown token -> HTTP 401 instead of accept + close 4001
 }
 
 type fakeConn struct {
@@ -81,7 +82,15 @@ func (b *fakeBackend) handleWS(w http.ResponseWriter, r *http.Request) {
 	_, ok := b.tokens[token]
 	b.mu.Unlock()
 	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
+		if b.rejectHTTP {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		_ = conn.Close(4001, "unknown token")
 		return
 	}
 	if r.Header.Get("Origin") != "" {
@@ -108,7 +117,7 @@ func (b *fakeBackend) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// forget makes the token unknown, like a deleted room (WS -> 401).
+// forget makes the token unknown, like a deleted room (WS -> close 4001, or 401 with rejectHTTP).
 func (b *fakeBackend) forget(token string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
