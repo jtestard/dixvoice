@@ -10,7 +10,7 @@ import { PLAYERS, REVEAL_ROUND, finishedState, lobbyState, playingState } from '
 describe('tutorialCue', () => {
   it('chooses every screen and role-specific moment', () => {
     const cases: { screen: TutorialScreen; state: GameState | null; label: string; body: string }[] = [
-      { screen: 'home', state: null, label: 'HOW TO PLAY', body: "Pick a nickname, then create a room or join a friend's with their 4-letter code." },
+      { screen: 'home', state: null, label: 'HOW TO PLAY', body: "Pick a nickname, then Quick start with AI companions, create a room, or join a friend's with their 4-letter code." },
       { screen: 'lobby', state: lobbyState(), label: 'HOW TO PLAY', body: 'Share the room code. You need 4 to 8 players, and anyone can press Start. Short on players? Add an AI companion.' },
       { screen: 'lobby', state: lobbyState(PLAYERS.concat(PLAYERS.map((p) => ({ ...p, playerId: `${p.playerId}b` })))), label: 'HOW TO PLAY', body: 'Share the room code. You need 4 to 8 players, and anyone can press Start.' },
       { screen: 'game', state: playingState('p1', { phase: 'storyteller' }), label: 'STEP 1/4', body: "You're the storyteller. Tap your clips to listen, pick one, and write a clue. Aim for a clue some players get, but not all." },

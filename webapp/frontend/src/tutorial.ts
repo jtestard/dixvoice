@@ -13,7 +13,7 @@ export function tutorialCue(state: GameState | null, screen: TutorialScreen): Tu
     return {
       key: 'home',
       label: 'HOW TO PLAY',
-      body: "Pick a nickname, then create a room or join a friend's with their 4-letter code.",
+      body: "Pick a nickname, then Quick start with AI companions, create a room, or join a friend's with their 4-letter code.",
     }
   }
   if (!state) return null

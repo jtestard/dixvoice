@@ -94,6 +94,11 @@ Screens and features:
 
 - **Home**: enter a nickname, then either create a room or join one with a code. Show the join errors clearly (unknown
   code, room full: "no more room", game already started).
+- **Quick start**: a prominent "Quick start" button on Home (needs only a nickname) that launches a game against 3 AI
+  companions in one tap, using the existing protocol only: create a room (`POST /rooms`), connect, send
+  `add_companion` 3 times, then send `start_game` automatically as soon as the room has 4 players. Show progress
+  ("Adding companions… 2/3") and, if a companion cannot be added (`companion_unavailable`), stop and leave the player
+  in the lobby with the error so they can retry or invite friends.
 - **Lobby**: show the room code (easy to read aloud and copy), the connected players, a Start button (enabled with 4+
   players), a Stop button, a Leave button, an "Add AI companion" button (hidden when the room is full) and a remove
   button next to each companion. Companions show a bot badge wherever player names appear.
@@ -120,7 +125,7 @@ Tutorial (cue cards):
 
 | Moment | Cue card |
 |---|---|
-| Home | Pick a nickname, then create a room or join a friend's with their 4-letter code. |
+| Home | Pick a nickname, then Quick start with AI companions, create a room, or join a friend's with their 4-letter code. |
 | Lobby | Share the room code. You need 4 to 8 players, and anyone can press Start. Short on players? Add an AI companion. |
 | 1/4 Storyteller, you | You're the storyteller. Tap your clips to listen, pick one, and write a clue. Aim for a clue some players get, but not all. |
 | 1/4 Storyteller, others | The storyteller is choosing a clip and writing a clue. Listen to your hand in the meantime. |

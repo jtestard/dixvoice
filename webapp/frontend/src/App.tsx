@@ -7,6 +7,7 @@ import { TutorialLayout } from './components/TutorialCard'
 import type { ClientMessage } from './types'
 import { tutorialCue, type TutorialScreen } from './tutorial'
 import { useGame } from './useGame'
+import { useQuickStart } from './useQuickStart'
 
 const TUTORIAL_KEY = 'dixvoice.tutorial'
 
@@ -30,6 +31,23 @@ export default function App() {
       return
     }
   }
+  const { quick, begin, dismiss } = useQuickStart({ token, state, conn, notice, send })
+
+  const onJoined = useCallback(
+    (t: string) => {
+      dismiss()
+      setToken(t)
+    },
+    [setToken, dismiss],
+  )
+
+  const onQuickStart = useCallback(
+    (t: string) => {
+      begin()
+      setToken(t)
+    },
+    [setToken, begin],
+  )
 
   const sendAndMaybeLeave = useCallback(
     (msg: ClientMessage) => {
@@ -64,13 +82,13 @@ export default function App() {
       )}
       <TutorialLayout cue={currentCue}>
         {!token ? (
-          <Home notice={notice} onDismissNotice={dismissNotice} onJoined={setToken} />
+          <Home notice={notice} onDismissNotice={dismissNotice} onJoined={onJoined} onQuickStart={onQuickStart} />
         ) : !state ? (
           <main className="screen">
             <p className="waiting">Loading room…</p>
           </main>
         ) : state.room.status === 'lobby' ? (
-          <Lobby state={state} send={sendAndMaybeLeave} />
+          <Lobby state={state} send={sendAndMaybeLeave} quick={quick} onDismissQuick={dismiss} />
         ) : state.room.status === 'finished' ? (
           <EndGame state={state} send={sendAndMaybeLeave} />
         ) : (
