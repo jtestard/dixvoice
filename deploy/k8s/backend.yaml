@@ -33,7 +33,7 @@ spec:
             - name: COMPANION_SERVICE_URL
               value: "http://dixvoice-companions.dixvoice.svc.cluster.local:8080"
             - name: ALLOWED_ORIGINS
-              value: "https://dixvoice-web.api.gcast.app,https://dixvoice-sample.api.gcast.app,http://localhost:5173"
+              value: "*"
           readinessProbe:
             httpGet:
               path: /healthz
