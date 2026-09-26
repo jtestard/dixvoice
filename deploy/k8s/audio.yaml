@@ -1,0 +1,117 @@
+# Audio generator microservice (Python, FastAPI + Gradium TTS): cluster-internal only, no Ingress.
+# The backend reaches it at http://dixvoice-audio.dixvoice.svc.cluster.local (port 80).
+# Secrets: `make audio-secret` creates dixvoice-audio-secrets from secret/audio.env and secret/aws.env.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dixvoice-audio
+  namespace: dixvoice
+  labels:
+    app: dixvoice-audio
+spec:
+  # Exactly 1 replica: the list of sounds lives in memory.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dixvoice-audio
+  template:
+    metadata:
+      labels:
+        app: dixvoice-audio
+    spec:
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: dixvoice-audio
+          image: 398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-audio:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: PROVIDER
+              value: gradium
+            - name: GRADIUM_MODEL
+              value: gradium-tts-beta
+            - name: GRADIUM_FALLBACK_MODEL
+              value: default
+            - name: STORAGE
+              value: s3
+            - name: S3_BUCKET
+              value: dixvoice-clips
+            - name: AWS_REGION
+              value: eu-west-1
+            - name: CDN_PUBLIC_URL
+              value: https://dp1tbjxi4bfec.cloudfront.net
+            - name: SERVE_LOCAL_CDN
+              value: "0"
+            - name: DATA_DIR
+              value: /data
+          envFrom:
+            # GRADIUM_API_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY. Use a key limited to the
+            # dixvoice-clips-write policy (or an EKS Pod Identity association), never an admin key.
+            - secretRef:
+                name: dixvoice-audio-secrets
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        # Objects of generated sounds (text, emotion). emptyDir: lost when the pod restarts, like the rooms of the
+        # backend; the mp3 files themselves stay on S3. Switch to a PersistentVolumeClaim to keep them.
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dixvoice-audio
+  namespace: dixvoice
+  labels:
+    app: dixvoice-audio
+spec:
+  selector:
+    app: dixvoice-audio
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+# POST /audio has no authentication: only the backend may reach the service.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dixvoice-audio-ingress
+  namespace: dixvoice
+spec:
+  podSelector:
+    matchLabels:
+      app: dixvoice-audio
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: dixvoice-backend
+      ports:
+        - port: 8080

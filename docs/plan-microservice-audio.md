@@ -574,7 +574,6 @@ Pas de gzip sur les MP3, qui sont déjà compressés (à vérifier dans le régl
 ```
 audio-service/
   pyproject.toml  uv.lock  .python-version  Dockerfile  .dockerignore
-  k8s/deployment.yaml  k8s/service.yaml  k8s/networkpolicy.yaml   # railway.json et fly.toml abandonnés (§8.4)
   .env.example  README.md
   config/presets.json  config/emotions.json  config/blocklist.txt
   library/manifest.json  library/CREDITS.md  library/clips/*.mp3
@@ -675,7 +674,7 @@ Le backend Go tourne sur le cluster Kubernetes gcast (README, « Deployment ») 
 - **Sondes** : readiness et liveness sur `GET /healthz` (qui n'appelle ni Gradium ni le CDN) ; `terminationGracePeriodSeconds` ≥ 10, pour laisser finir une génération en cours (`timeout_graceful_shutdown=8`, §8.2).
 - **Secret Kubernetes** : `GRADIUM_API_KEY` et les identifiants de dépôt sur le CDN.
 - **Variables** : `PORT=8080`, `PROVIDER=gradium`, `GRADIUM_BASE_URL=https://api.gradium.ai/api`, `GRADIUM_MODEL=gradium-tts-beta`, `GRADIUM_FALLBACK_MODEL=default`, `MAX_CHARS=100`, `MAX_CONCURRENCY=4`, `DAILY_CHAR_BUDGET=50000`, `CREDIT_FLOOR=20000`, `PROVIDER_TIMEOUT_S=5`, `CDN` (backend de dépôt), `CDN_PUBLIC_URL` (base de `clipUrl`), `CDN_TIMEOUT_S=5`. Plus de `SERVICE_TOKEN` ni de `CORS_ORIGINS`.
-- **Manifests** dans `audio-service/k8s/` (ou à côté de ceux de Go, `./webapp/backend/k8s`, au choix de l'équipe). Image construite par la CI ; registre, nom d'image et namespace **à décider** (les mêmes « TBD » que pour Go).
+- **Manifest** : `deploy/k8s/audio.yaml`, à côté de ceux de Go et du front (namespace `dixvoice`, Service `dixvoice-audio` sur le port 80). Image arm64 `dixvoice-audio` sur ECR, construite et déployée par `make deploy-audio` (secret : `make audio-secret`).
 - **Région** : celle du cluster gcast, **inconnue à ce jour**. Si Gradium répond depuis Paris et que le cluster est loin, chaque clip paie la distance. On lit `gradium_ip` et `tls_ms` dans `/healthz` dès J1.
 - **Version jury figée** : tag `v1.0` et déploiement automatique coupé après la remise.
 

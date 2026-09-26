@@ -1,0 +1,36 @@
+name: audio-service
+
+on:
+  push:
+    paths: ["audio-service/**", "spec/**", ".github/workflows/audio-service.yml"]
+  pull_request:
+    paths: ["audio-service/**", "spec/**", ".github/workflows/audio-service.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: audio-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run pytest -q
+      - run: uv run python tools/build_library.py --check
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t dixvoice-audio audio-service
+      - name: Smoke test (fake voices, local storage)
+        run: |
+          docker run -d --name audio -p 8080:8080 -e PROVIDER=fake -e STORAGE=local \
+            -e LOCAL_CDN_DIR=/data/cdn -e DATA_DIR=/data/objects dixvoice-audio
+          for i in $(seq 1 30); do curl -sf localhost:8080/healthz && break; sleep 1; done
+          curl -sf localhost:8080/audio/list | python3 -c "import sys,json; n=len(json.load(sys.stdin)); print(n, 'sounds'); assert n > 0"
+          curl -sf -X POST localhost:8080/audio -H 'Content-Type: application/json' \
+            -d '{"text":"Is anyone there?","emotion":"eerie"}'
+          docker logs audio | tail -5

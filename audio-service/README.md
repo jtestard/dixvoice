@@ -113,9 +113,19 @@ startup.
 
 ## Deployment
 
-One pod on the gcast Kubernetes cluster, next to the Go backend, never exposed outside the cluster:
-[`Dockerfile`](Dockerfile) and [`k8s/`](k8s) (Deployment with 1 replica, ClusterIP Service, NetworkPolicy, Secret
-example). Registry and namespace are still to be decided.
+One pod on the gcast EKS cluster (namespace `dixvoice`), next to the Go backend, never exposed outside the cluster.
+Manifest: [`../deploy/k8s/audio.yaml`](../deploy/k8s/audio.yaml) (Deployment with 1 replica, Service
+`dixvoice-audio` on port 80, NetworkPolicy letting only the backend in). From the repository root:
+
+```bash
+make audio-secret    # Gradium and AWS keys from secret/ into the Kubernetes secret
+make deploy-audio    # build the arm64 image, push it to ECR, roll out
+make logs-audio
+```
+
+The backend reaches it at `AUDIO_SERVICE_URL=http://dixvoice-audio.dixvoice.svc.cluster.local`. CI
+([`../.github/workflows/audio-service.yml`](../.github/workflows/audio-service.yml)) runs the tests, checks the library
+and builds and smoke-tests the image.
 
 ## Measured
 
