@@ -32,7 +32,7 @@ ERRORS = {"model": ErrorBody}
 def make_provider(s: Settings) -> Provider:
     if s.provider == "gradium":
         return GradiumProvider(s.gradium_api_key, s.gradium_base_url, s.gradium_model, s.gradium_fallback_model,
-                               s.provider_timeout_s)
+                               s.provider_timeout_s, early_stop_s=s.gradium_early_stop_s)
     if s.provider == "off":
         return OffProvider()
     return FakeProvider(s.fake_latency_ms)

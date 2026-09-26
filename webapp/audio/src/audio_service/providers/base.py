@@ -34,6 +34,7 @@ class Synthesis:
     model: str = ""
     first_audio_ms: float | None = None
     total_ms: float = 0.0
+    early_stop: bool = False
 
 
 class Provider(Protocol):

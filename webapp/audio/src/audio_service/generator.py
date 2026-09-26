@@ -119,6 +119,7 @@ class Generator:
             self._slots.release()
         timings["provider_first_audio"] = syn.first_audio_ms or 0.0
         timings["provider_done"] = syn.total_ms
+        timings["early_stop"] = 1.0 if syn.early_stop else 0.0
         t_p = time.perf_counter()
         processed, mp3 = await asyncio.to_thread(self._postprocess, syn)
         timings["postprocess"] = (time.perf_counter() - t_p) * 1000

@@ -58,6 +58,7 @@ To run the backend against it: `AUDIO_SERVICE_URL=http://localhost:8080 PORT=900
 | `GRADIUM_API_KEY` | | Gradium key (Kubernetes secret in production). |
 | `GRADIUM_MODEL` / `GRADIUM_FALLBACK_MODEL` | `gradium-tts-beta` / `default` | TTS model, and the one retried on error. |
 | `PROVIDER_TIMEOUT_S` | `5` | Max time for one Gradium call. |
+| `GRADIUM_EARLY_STOP_S` | `0.35` | Answer once the speech is over and this much silence followed, instead of waiting for Gradium's ~1 s of trailing silence (`0` disables). |
 | `STORAGE` | `local` | `local` (mp3 in `LOCAL_CDN_DIR`, served under `/cdn`) or `s3`. |
 | `S3_BUCKET` / `AWS_REGION` | `dixvoice-clips` / `eu-west-1` | Bucket of the mp3 files; keys in `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`. |
 | `CDN_PUBLIC_URL` | `http://localhost:8080/cdn` | Prefix of every `clipUrl` (production: `https://dp1tbjxi4bfec.cloudfront.net`). |
@@ -93,6 +94,11 @@ flat, `{"error": "<code>", "message": "…"}`:
    [`config/presets.json`](config/presets.json): a Gradium voice (French or English, from the language of the text), a
    liveliness (`temp`) and a speed (`padding_bonus`). Gradium has no emotion parameter: the emotion lives in the voice.
 3. Gradium TTS (`POST /post/speech/tts`, raw 24 kHz audio with word timestamps) over one kept-alive HTTP client.
+   Gradium always streams about 2 s of audio, the speech followed by silence, and sends the timestamps of every word
+   but the last before the end. Once voice has been heard after the last timestamped word and 0.35 s of silence
+   followed, the clip is complete: the service answers and reads the rest of the stream in the background, so the
+   connection stays reusable. Mid-sentence pauses (up to 0.6 s measured) come before the last word, so they never
+   trigger it.
 4. Fit in 2 s: silences trimmed, longer texts spoken faster, then cut after the last whole word; 30 ms fade-out.
 5. mp3 (soundfile/LAME, 24 kHz mono VBR, exact length in Chrome and Safari), uploaded to
    `s3://dixvoice-clips/audio/{id}.mp3` under a new UUID v4, then listed. Library and generated clips share the id
@@ -138,8 +144,19 @@ From the repository root: `make audio-secret` (Gradium and AWS keys from `secret
 
 ## Measured
 
-First run on 2026-09-26 from Paris, 5 clips of 10 to 24 characters, model `gradium-tts-beta`: Gradium first audio 63
-to 138 ms, whole clip 553 to 624 ms, trim/fit/mp3 4 to 9 ms, upload to S3 87 to 205 ms, **`POST /audio` total 645 to
-764 ms**. French lines were spoken at about 24 characters per second, so about 40 characters fit in 2 seconds.
+2026-09-26, from Paris, model `gradium-tts-beta`, connection to Gradium reused for every clip (checked: no new TCP
+connection over 8 requests):
+
+| Step | Measured |
+| --- | --- |
+| Gradium, first audio | 63 to 149 ms |
+| Gradium, whole stream (about 2 s of audio, speech then silence) | 511 to 833 ms, median 575 ms |
+| Gradium with the early stop (12 test phrases, none cut) | 297 to 603 ms, median 483 ms |
+| Trim, fit, mp3 | 4 to 9 ms |
+| Upload to S3 | 87 to 205 ms |
+| **`POST /audio` total, local storage, early stop** | **320 to 516 ms** (5 requests) |
+| `POST /audio` total with S3, before the early stop | 645 to 764 ms (5 requests) |
+
+French lines were spoken at about 24 characters per second, so about 40 characters fit in 2 seconds.
 
 Voices generated with Gradium AI.
