@@ -24,6 +24,16 @@ A player can start a game.
 The frontend is a Vite + React single-page app, built as a static bundle so it can be uploaded to itch.io as an HTML5
 game. It holds no game logic: it renders the state sent by the backend and sends player actions back.
 
+Layout and styling:
+
+- **Mobile first**: the game must be fully playable on a phone in portrait orientation (from 360px wide), both in a
+  mobile browser and in the itch.io embed, and scale up to tablet and desktop.
+- Touch-friendly: tap targets of at least 44px, no hover-only interactions, no horizontal scrolling. The hand of 5
+  clips stacks or wraps on narrow screens.
+- **Basic styling only** for this first version: plain CSS, a neutral palette and system fonts, no UI framework or
+  custom assets. Keep colors and spacing in CSS variables so the game identity can be applied later without
+  restructuring the components.
+
 Screens and features:
 
 - **Lobby**: opening the game link joins the single room directly (no room code or room selection). The player enters
@@ -63,6 +73,21 @@ Responsibilities:
   - every other player also scores 1 point per vote their own clip received.
 - **Audio**: call the audio generator microservice to list sounds, fetch them, and create new ones on a player's
   request. Game state stays in memory, which is enough for a single room.
+
+#### Deployment
+
+The backend ships as a container image (multi-stage `Dockerfile` in `./webapp/backend`: build the Go binary, then copy
+it into a minimal runtime image) and runs on the existing gcast Kubernetes cluster:
+
+- **Deployment** with exactly **1 replica**: game state lives in memory, so a second replica would create a second,
+  separate room.
+- **Service** exposing the HTTP and WebSocket endpoints inside the cluster. Public exposure (Ingress, HTTPS) comes at a
+  later stage; it will need to allow WebSocket upgrades and long-lived connections.
+- **Configuration** through environment variables: listen port, audio generator microservice URL, and allowed CORS
+  origins (the itch.io domains the frontend is served from).
+- **Health check** endpoint (e.g. `GET /healthz`) for liveness and readiness probes.
+
+A restart of the pod resets the game in progress, which is acceptable for the hackathon.
 
 ## Audio Generator Microservice
 
