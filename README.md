@@ -2,6 +2,8 @@
 
 DixVoice is a game that looks like the famous [Dixit](<https://en.wikipedia.org/wiki/Dixit_(board_game)>) but using short Voice cards instead of Images.
 
+![A DixVoice round against three AI companions: Robo Ada's clue "the sea at low tide", and the player's hand of six voice clips](screenshot.png)
+
 ## How it works
 
 One player creates a room and shares its code, or taps Quick start to play right away against three AI companions.
