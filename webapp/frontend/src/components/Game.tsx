@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import type { ClientMessage, GameState, Player, Round } from '../types'
+import type { ClientMessage, CustomSlotState, GameState, Player, Round } from '../types'
 import { ClipCard, FaceDownCard } from './ClipCard'
+import { CreateSoundForm, CustomSlotCard, type SoundDraft } from './CustomSound'
 import { AddCompanionButton, PlayerList, PlayerName, Scoreboard, StopButton } from './Common'
 
 interface Props {
@@ -53,7 +54,7 @@ export function Game({ state, send }: Props) {
       )}
 
       {round?.phase === 'storyteller' &&
-        (isStoryteller ? <StorytellerPhase state={state} send={send} /> : <WaitForClue state={state} />)}
+        (isStoryteller ? <StorytellerPhase state={state} send={send} /> : <WaitForClue state={state} send={send} />)}
       {round?.phase === 'submit' &&
         (isStoryteller ? <WaitForSubmissions state={state} /> : <SubmitPhase state={state} send={send} />)}
       {round?.phase === 'vote' && <VotePhase state={state} send={send} isStoryteller={isStoryteller} />}
@@ -75,7 +76,23 @@ function Clue({ round }: { round: Round }) {
   )
 }
 
-function Hand({ state, selected, onSelect, actionLabel, disabled }: { state: GameState; selected: string | null; onSelect?: (id: string) => void; actionLabel?: string; disabled?: boolean }) {
+interface HandProps {
+  state: GameState
+  selected: string | null
+  onSelect?: (id: string) => void
+  actionLabel?: string
+  disabled?: boolean
+  /** When given, the hand offers its custom slot: create your own sound while you can still play it. */
+  send?: (msg: ClientMessage) => void
+}
+
+function Hand({ state, selected, onSelect, actionLabel, disabled, send }: HandProps) {
+  const [formOpen, setFormOpen] = useState(false)
+  const [draft, setDraft] = useState<SoundDraft>({ text: '', emotion: '' })
+  const round = state.round
+  const slot = state.you.customSlot
+  const canCreate = !!send && !!round && (round.phase === 'storyteller' || round.phase === 'submit') && !round.yourSubmission
+  const createState: CustomSlotState | null = canCreate && slot !== undefined && slot !== 'ready' ? slot : null
   return (
     <section aria-label="Your hand">
       <h2>Your hand</h2>
@@ -89,9 +106,22 @@ function Hand({ state, selected, onSelect, actionLabel, disabled }: { state: Gam
             onSelect={onSelect}
             actionLabel={actionLabel}
             disabled={disabled}
+            badge={clip.custom ? 'your sound' : undefined}
           />
         ))}
+        {createState && <CustomSlotCard state={createState} onOpen={() => setFormOpen(true)} />}
       </div>
+      {send && createState && createState !== 'generating' && formOpen && (
+        <CreateSoundForm
+          initial={draft}
+          onCancel={() => setFormOpen(false)}
+          onSubmit={(d) => {
+            setDraft(d)
+            setFormOpen(false)
+            send({ type: 'generate_sound', text: d.text, emotion: d.emotion })
+          }}
+        />
+      )}
     </section>
   )
 }
@@ -117,7 +147,7 @@ function StorytellerPhase({ state, send }: Props) {
   return (
     <>
       <p>You are the storyteller. Listen to your clips, pick one and write a clue for it.</p>
-      <Hand state={state} selected={clipId} onSelect={setClipId} />
+      <Hand state={state} selected={clipId} onSelect={setClipId} send={send} />
       <form
         className="clue-form"
         onSubmit={(e) => {
@@ -137,14 +167,14 @@ function StorytellerPhase({ state, send }: Props) {
   )
 }
 
-function WaitForClue({ state }: { state: GameState }) {
+function WaitForClue({ state, send }: Props) {
   const storyteller = state.players.find((p) => p.isStoryteller)
   return (
     <>
       <p className="waiting">
         Waiting for {storyteller ? <PlayerName player={storyteller} /> : 'the storyteller'} to pick a clip and write a clue…
       </p>
-      <Hand state={state} selected={null} />
+      <Hand state={state} selected={null} send={send} />
     </>
   )
 }
@@ -167,6 +197,7 @@ function SubmitPhase({ state, send }: Props) {
         selected={submitted}
         onSelect={submitted ? undefined : (clipId) => send({ type: 'submit_clip', clipId })}
         actionLabel="Submit"
+        send={send}
       />
       <h2>Players</h2>
       <PlayerList players={state.players.filter((p) => !p.isStoryteller)} youId={state.you.playerId} waitingOn={waitingOn} />

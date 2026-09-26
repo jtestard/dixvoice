@@ -25,6 +25,8 @@ export const ERROR_TEXT: Record<string, string> = {
   not_enough_players: 'At least 4 players are needed to start.',
   not_a_companion: 'That player is not an AI companion.',
   companion_unavailable: 'AI companions are unavailable right now. Please try again later.',
+  invalid_sound: 'Write a text of 1 to 100 characters and an emotion of 1 to 30.',
+  custom_slot_busy: 'You already created a sound this round.',
   network: 'Could not reach the server.',
 }
 

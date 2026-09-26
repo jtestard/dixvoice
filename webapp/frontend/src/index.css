@@ -996,3 +996,113 @@ h2 {
     scroll-behavior: auto !important;
   }
 }
+
+/* Custom slot: the 6th card of the hand, until the player's own sound fills it */
+.custom-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  padding: var(--space-2);
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: var(--line) dashed var(--color-border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transform: rotate(-2deg);
+  transition:
+    background var(--dur) var(--ease-out),
+    transform var(--dur) var(--ease-out);
+}
+
+button.custom-slot:hover {
+  background: var(--color-surface);
+}
+
+button.custom-slot:active {
+  transform: rotate(-2deg) translate(2px, 2px);
+}
+
+.custom-slot__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: var(--line) solid var(--color-border);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.custom-slot__action {
+  font-size: 0.875rem;
+  text-decoration: underline;
+}
+
+.custom-slot--busy {
+  cursor: default;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.custom-slot--failed {
+  background: var(--color-error-bg);
+}
+
+.custom-slot__spinner {
+  width: 30px;
+  height: 30px;
+  border: var(--line-bold) solid var(--color-secondary);
+  border-top-color: var(--color-text);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.create-sound {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.create-sound__title {
+  margin: 0;
+}
+
+.create-sound__hint {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.create-sound__count {
+  margin-top: calc(-1 * var(--space-2));
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  text-align: right;
+}
+
+.create-sound__count--over,
+.create-sound__warn {
+  color: var(--color-danger);
+}
+
+.create-sound__warn {
+  margin: 0;
+  font-weight: 600;
+}

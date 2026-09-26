@@ -13,7 +13,8 @@ const BOTS = Number(process.env.MOCK_BOTS ?? 0)
 const MAX_PLAYERS = 8
 const BOT_DELAY_MS = Number(process.env.MOCK_BOT_DELAY_MS ?? 1500)
 const TARGET_SCORE = 10
-const HAND_SIZE = 6
+const DEALT_SIZE = 5 // + 1 custom slot the player can fill with a generated sound
+const GENERATE_DELAY_MS = Number(process.env.MOCK_GENERATE_DELAY_MS ?? 1200)
 const POOL_SIZE = Number(process.env.MOCK_POOL_SIZE ?? 240)
 
 const clipsDir = resolve(import.meta.dirname, 'clips')
@@ -115,12 +116,14 @@ function deleteRoom(room, reason) {
 // ---- game logic ----
 function deal(room) {
   const available = shuffle(room.pool.filter((s) => !room.used.has(s.id)))
-  if (available.length < room.players.length * HAND_SIZE) return false
+  if (available.length < room.players.length * DEALT_SIZE) return false
   for (const p of room.players) {
-    p.hand = available.splice(0, HAND_SIZE).map(toClip)
+    p.hand = available.splice(0, DEALT_SIZE).map(toClip)
     for (const c of p.hand) room.used.add(c.clipId)
     p.submission = null
     p.vote = null
+    p.customSlot = 'empty'
+    p.customTicket = (p.customTicket ?? 0) + 1
   }
   return true
 }
@@ -167,7 +170,8 @@ function allVoted(room) {
 function toVote(room) {
   const r = room.round
   r.phase = 'vote'
-  r.table = shuffle(room.players.map((p) => p.submission).filter(Boolean))
+  // The table never tells a custom clip apart.
+  r.table = shuffle(room.players.map((p) => p.submission).filter(Boolean).map(({ custom, ...c }) => c))
   scheduleBots(room)
 }
 
@@ -304,6 +308,36 @@ function handle(room, player, msg) {
       if (r?.phase !== 'reveal') return err('invalid_phase', 'Not the reveal phase')
       nextRound(room)
       return null
+    case 'generate_sound': {
+      if (room.status !== 'playing' || (r?.phase !== 'storyteller' && r?.phase !== 'submit'))
+        return err('invalid_phase', 'Sounds can only be created before the clips are on the table')
+      if (player.submission) return err('already_submitted', 'You already put a clip on the table')
+      if (player.customSlot === 'generating' || player.customSlot === 'ready') return err('custom_slot_busy', 'Custom slot already used')
+      const text = String(msg.text ?? '').trim()
+      const emotion = String(msg.emotion ?? '').trim()
+      if (!text || text.length > 100 || !emotion || emotion.length > 30) return err('invalid_sound', 'Invalid text or emotion')
+      player.customSlot = 'generating'
+      const ticket = ++player.customTicket
+      // Like the real audio service: digits are refused, and "fail" in the text simulates an outage.
+      setTimeout(() => {
+        if (player.customTicket !== ticket || player.customSlot !== 'generating' || room.status !== 'playing') return
+        if (/\d/.test(text) || /fail/i.test(text)) {
+          player.customSlot = 'failed'
+          const message = /\d/.test(text)
+            ? 'Write numbers in words: digits are read out in full and do not fit in 2 seconds.'
+            : 'the sound could not be generated, try again'
+          sendTo(player, { type: 'error', code: 'generation_failed', message })
+        } else {
+          const base = pick(room.pool)
+          const clip = { clipId: `gen-${ticket}-${player.playerId}`, clipUrl: base.clipUrl, text, emotion, voiceId: pick(VOICE_IDS), custom: true }
+          player.hand.push(clip)
+          room.used.add(clip.clipId)
+          player.customSlot = 'ready'
+        }
+        broadcast(room)
+      }, GENERATE_DELAY_MS)
+      return null
+    }
     default:
       return err('invalid_phase', `Unknown message type ${msg.type}`)
   }
@@ -314,7 +348,7 @@ function snapshot(room, player) {
   return {
     type: 'state',
     room: { code: room.code, status: room.status, targetScore: TARGET_SCORE },
-    you: { playerId: player.playerId, hand: player.hand },
+    you: { playerId: player.playerId, hand: player.hand, customSlot: room.status === 'playing' ? (player.customSlot ?? 'empty') : 'empty' },
     players: room.players.map((p) => ({
       playerId: p.playerId,
       nickname: p.nickname,
