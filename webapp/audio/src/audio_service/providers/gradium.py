@@ -25,6 +25,35 @@ MAX_DECODE_S = 2.4  # we keep at most 2 s: stop decoding beyond this, but read t
 UNAVAILABLE_HINTS = ("revoked", "expired", "credit", "quota", "1008", "unauthorized", "forbidden")
 STICKY_FAILURES = 3
 STICKY_SECONDS = 30 * 60
+SILENCE_DBFS = -45.0
+FRAME = SAMPLE_RATE // 100  # 10 ms
+
+
+class _SilenceTracker:
+    """Follows the incoming int16 audio: has speech started, and how long has it been silent since."""
+
+    def __init__(self):
+        self.spoke = False
+        self.silence_s = 0.0
+        self.audio_s = 0.0
+        self.last_loud_s = 0.0  # end of the last loud frame, in audio time
+        self._rest = b""
+
+    def feed(self, data: bytes) -> None:
+        buf = self._rest + data
+        usable = len(buf) // (2 * FRAME) * 2 * FRAME
+        self._rest = buf[usable:]
+        if not usable:
+            return
+        x = np.frombuffer(buf[:usable], dtype="<i2").astype(np.float32) / 32768.0
+        frames = x.reshape(-1, FRAME)
+        loud = 20 * np.log10(np.sqrt(np.mean(frames ** 2, axis=1)) + 1e-9) > SILENCE_DBFS
+        for is_loud in loud:
+            self.audio_s += 0.01
+            if is_loud:
+                self.spoke, self.silence_s, self.last_loud_s = True, 0.0, self.audio_s
+            else:
+                self.silence_s += 0.01
 
 
 def _classify(message: str, status: int | None = None) -> ProviderError:
@@ -40,8 +69,10 @@ class GradiumProvider:
     name = "gradium"
 
     def __init__(self, api_key: str, base_url: str, model: str, fallback_model: str, timeout_s: float,
-                 transport: httpx.AsyncBaseTransport | None = None):
+                 transport: httpx.AsyncBaseTransport | None = None, early_stop_s: float = 0.35):
         self.transport = transport  # tests inject an httpx.MockTransport
+        self.early_stop_s = early_stop_s  # 0 disables the early stop
+        self._drains: set[asyncio.Task] = set()
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -139,6 +170,12 @@ class GradiumProvider:
             raise ProviderError(f"Gradium request failed: {exc}") from exc
 
     async def _stream(self, body: dict, model: str) -> Synthesis:
+        """Reads the NDJSON stream. Gradium keeps sending about 1 s of silence after the speech, and sends the
+        timestamps of every word except the last one before the end (often ahead of the audio; measured 2026-09-26).
+        So once all words but the last are timestamped, voice has been heard after the last timestamped word (that
+        is the last word) and early_stop_s of silence has followed, the clip is complete: we answer right away and
+        keep reading the rest in the background, so the connection stays reusable. Mid-sentence pauses (up to 0.6 s
+        measured) happen before the last word, so they never satisfy the rule."""
         assert self.client is not None
         t0 = time.perf_counter()
         first_audio_ms = None
@@ -146,10 +183,17 @@ class GradiumProvider:
         decoded_bytes = 0
         max_bytes = int(MAX_DECODE_S * SAMPLE_RATE) * 2
         words: list[Word] = []
-        async with self.client.stream("POST", "/post/speech/tts", json=body) as r:
+        n_words = len(body["text"].split())
+        tracker = _SilenceTracker()
+        early = False
+        request = self.client.build_request("POST", "/post/speech/tts", json=body)
+        r = await self.client.send(request, stream=True)
+        handed_off = False
+        try:
             if r.status_code != 200:
                 raise _classify((await r.aread()).decode("utf-8", "replace")[:300], r.status_code)
-            async for line in r.aiter_lines():
+            lines = r.aiter_lines()
+            async for line in lines:
                 if not line.strip():
                     continue
                 try:
@@ -164,15 +208,40 @@ class GradiumProvider:
                         data = base64.b64decode(msg["audio"])
                         chunks.append(data)
                         decoded_bytes += len(data)
+                        tracker.feed(data)
+                    last_stamp = words[-1].stop_s if words else 0.0
+                    if (self.early_stop_s > 0 and tracker.spoke and len(words) >= n_words - 1
+                            and tracker.last_loud_s > last_stamp + 0.05
+                            and tracker.silence_s >= self.early_stop_s):
+                        early = True
+                        task = asyncio.create_task(self._drain(r, lines))
+                        self._drains.add(task)
+                        task.add_done_callback(self._drains.discard)
+                        handed_off = True
+                        break
                 elif kind == "text":
                     words.append(Word(msg.get("text", ""), float(msg.get("start_s", 0.0)), float(msg.get("stop_s", 0.0))))
                 elif kind == "error":
                     raise _classify(str(msg.get("message", msg)))
+        finally:
+            if not handed_off:
+                await r.aclose()
         raw = b"".join(chunks)
         pcm = np.frombuffer(raw[: len(raw) // 2 * 2], dtype="<i2").copy()
         if len(pcm) == 0:
             raise ProviderError("Gradium returned no audio")
-        return Synthesis(pcm, SAMPLE_RATE, words, model, first_audio_ms, (time.perf_counter() - t0) * 1000)
+        return Synthesis(pcm, SAMPLE_RATE, words, model, first_audio_ms, (time.perf_counter() - t0) * 1000, early)
+
+    @staticmethod
+    async def _drain(r: httpx.Response, lines) -> None:
+        try:
+            async with asyncio.timeout(15):
+                async for _ in lines:
+                    pass
+        except Exception as exc:  # the clip is already delivered: only the connection is lost
+            log.debug("drain failed: %s", exc)
+        finally:
+            await r.aclose()
 
     def status(self) -> dict:
         return {

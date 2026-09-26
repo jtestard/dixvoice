@@ -21,14 +21,56 @@ var clips embed.FS
 
 const clipCount = 5
 
-var words = []string{
-	"a door in the rain", "is anyone there", "the kettle whistles", "footsteps upstairs", "a distant train",
-	"the last candle", "keys in the dark", "laughter next door", "the phone rings twice", "wind under the bridge",
-	"a coin on the table", "the elevator hums", "someone says hello", "a bicycle bell", "the cat knocks it over",
-	"a page turns", "thunder far away", "the radio crackles", "a spoon in a cup", "the door won't close",
+// lines are spoken texts paired with the emotion they are said with, like
+// the AudioRequests that produced the library.
+var lines = [][2]string{
+	{"Is anyone there?", "eerie"},
+	{"We did it, we actually did it!", "joyful"},
+	{"Please, just leave me alone.", "sad"},
+	{"Don't you dare touch that.", "angry"},
+	{"The kettle is whistling again.", "calm"},
+	{"I heard footsteps upstairs.", "eerie"},
+	{"Five more minutes, I promise.", "sleepy"},
+	{"What's behind the red door?", "curious"},
+	{"Hurry, the train is leaving!", "excited"},
+	{"The last candle just went out.", "eerie"},
+	{"Where did I put my keys?", "curious"},
+	{"Happy birthday to you!", "joyful"},
+	{"The phone rang twice and stopped.", "eerie"},
+	{"I never wanted it to end like this.", "sad"},
+	{"Take a deep breath. Everything is fine.", "calm"},
+	{"This is the third time this week!", "angry"},
+	{"Look, a shooting star!", "excited"},
+	{"Someone is at the window.", "eerie"},
+	{"Good night, sleep tight.", "sleepy"},
+	{"Do you think it remembers us?", "curious"},
+	{"Wind under the bridge, all night long.", "calm"},
+	{"I found a coin on the table.", "curious"},
+	{"The elevator hums but never comes.", "eerie"},
+	{"Hello? Can you hear me?", "curious"},
+	{"Ring the bell twice if you are lost.", "calm"},
+	{"The cat knocked it over again.", "angry"},
+	{"Turn the page, slowly.", "calm"},
+	{"Thunder, far away.", "eerie"},
+	{"The radio only plays static now.", "sad"},
+	{"A spoon in a cup, the morning begins.", "joyful"},
+	{"The door won't close anymore.", "angry"},
+	{"Tell me a story before I fall asleep.", "sleepy"},
+	{"I can't believe you came!", "joyful"},
+	{"There is a light under the sea.", "curious"},
+	{"Run! It's right behind us!", "excited"},
+	{"Nobody remembers my name here.", "sad"},
+	{"Have you ever seen the sky so blue?", "joyful"},
+	{"Stop the car. Now.", "angry"},
+	{"The tide is coming in, gently.", "calm"},
+	{"One more level, then bed.", "sleepy"},
 }
 
-var emotions = []string{"joyful", "eerie", "calm", "angry", "sleepy", "curious", "sad", "excited"}
+// voices look like Gradium voice ids (16 letters and digits).
+var voices = []string{
+	"6MFfc37kq0sBjBjy", "YTkS9pxQ4mWvZ2eL", "qA7hL0dRcX3nUvKp", "Mw2zB8tJfE5sHy0G",
+	"rV4cN1kXqP9mT6aD", "Zk3fH7yLbS0wQ8nE", "uE9dW2rTgK5xM1jC", "Ls6bP0vQnJ4yR7tA",
+}
 
 // Fixtures returns n deterministic AudioResponses. clipBase is the URL prefix
 // used for clipUrl (e.g. "http://localhost:8081").
@@ -36,11 +78,12 @@ func Fixtures(n int, clipBase string) []audio.Response {
 	rng := rand.New(rand.NewPCG(42, 7))
 	out := make([]audio.Response, n)
 	for i := range out {
+		line := lines[i%len(lines)]
 		out[i] = audio.Response{
 			ID:      uuidV4(rng),
-			Text:    fmt.Sprintf("%s (%d)", words[i%len(words)], i+1),
-			Emotion: emotions[i%len(emotions)],
-			VoiceID: fmt.Sprintf("mock-voice-%d", i%3),
+			Text:    line[0],
+			Emotion: line[1],
+			VoiceID: voices[(i/len(lines)+i)%len(voices)],
 			ClipURL: fmt.Sprintf("%s/clips/tone%d.mp3", strings.TrimRight(clipBase, "/"), i%clipCount),
 		}
 	}

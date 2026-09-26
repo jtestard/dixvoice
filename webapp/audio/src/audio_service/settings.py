@@ -24,6 +24,8 @@ class Settings:
     gradium_base_url: str = field(default_factory=lambda: _env("GRADIUM_BASE_URL", "https://api.gradium.ai/api"))
     gradium_model: str = field(default_factory=lambda: _env("GRADIUM_MODEL", "gradium-tts-beta"))
     gradium_fallback_model: str = field(default_factory=lambda: _env("GRADIUM_FALLBACK_MODEL", "default"))
+    # Answer as soon as the speech is over instead of waiting for Gradium's trailing silence (0 disables).
+    gradium_early_stop_s: float = field(default_factory=lambda: float(_env("GRADIUM_EARLY_STOP_S", "0.35")))
     provider_timeout_s: float = field(default_factory=lambda: float(_env("PROVIDER_TIMEOUT_S", "5")))
     fake_latency_ms: int = field(default_factory=lambda: int(_env("FAKE_LATENCY_MS", "0")))
 

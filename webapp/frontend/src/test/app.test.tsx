@@ -67,7 +67,7 @@ describe('App', () => {
       last().open()
       last().receive(lobbyState())
     })
-    expect(await screen.findByText('KXQP')).toBeInTheDocument()
+    expect(await screen.findByTestId('room-code')).toHaveTextContent('KXQP')
   })
 
   it('shows join errors clearly, including "no more room"', async () => {
@@ -105,7 +105,7 @@ describe('App', () => {
       last().open()
       last().receive(lobbyState())
     })
-    expect(screen.getByText('KXQP')).toBeInTheDocument()
+    expect(screen.getByTestId('room-code')).toHaveTextContent('KXQP')
     act(() => {
       last().receive({ type: 'room_closed', reason: 'stopped' })
       last().close()

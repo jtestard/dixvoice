@@ -29,6 +29,7 @@ type PlayerState struct {
 	IsStoryteller bool   `json:"isStoryteller"`
 	HasSubmitted  bool   `json:"hasSubmitted"`
 	HasVoted      bool   `json:"hasVoted"`
+	IsCompanion   bool   `json:"isCompanion"`
 }
 
 type RoundState struct {
@@ -82,6 +83,7 @@ func (r *Room) Snapshot(playerID string) State {
 			IsStoryteller: r.Round != nil && p.ID == storyteller,
 			HasSubmitted:  r.Round != nil && p.Submission != "",
 			HasVoted:      r.Round != nil && p.Vote != "",
+			IsCompanion:   p.IsCompanion,
 		})
 	}
 	if r.Round != nil {

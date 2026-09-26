@@ -1,0 +1,78 @@
+# Sample: static page to browse and play the audio library clips: https://dixvoice-sample.api.gcast.app
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dixvoice-sample
+  namespace: dixvoice
+  labels:
+    app: dixvoice-sample
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dixvoice-sample
+  template:
+    metadata:
+      labels:
+        app: dixvoice-sample
+    spec:
+      containers:
+        - name: dixvoice-sample
+          image: 398351901243.dkr.ecr.eu-west-1.amazonaws.com/dixvoice-sample:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dixvoice-sample
+  namespace: dixvoice
+  labels:
+    app: dixvoice-sample
+spec:
+  selector:
+    app: dixvoice-sample
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contour-dixvoice-sample
+  namespace: dixvoice
+  labels:
+    app: dixvoice-sample
+  annotations:
+    kubernetes.io/ingress.class: contour
+    projectcontour.io/timeout: 60s
+spec:
+  rules:
+    - host: dixvoice-sample.api.gcast.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dixvoice-sample
+                port:
+                  number: 8080
+  tls:
+    - hosts:
+        - dixvoice-sample.api.gcast.app
+      secretName: dixvoice-tls

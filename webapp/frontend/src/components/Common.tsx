@@ -43,23 +43,21 @@ export function PlayerList({ players, youId, waitingOn, onRemoveCompanion }: Pla
       {players.map((p) => {
         const waiting = waitingOn ? waitingOn(p) : false
         return (
-          <li key={p.playerId} className={`player${p.connected ? '' : ' player--offline'}`}>
+          <li key={p.playerId} className={`player${p.connected ? '' : ' player--offline'}${p.playerId === youId ? ' player--you' : ''}`}>
             <span className="player__name">
               <PlayerName player={p} />
               {p.playerId === youId && <span className="muted"> (you)</span>}
-              {p.isStoryteller && <span className="tag">storyteller</span>}
             </span>
-            {waitingOn && (
-              <span className={`player__status ${waiting ? 'player__status--waiting' : 'player__status--done'}`}>
-                {waiting ? 'waiting…' : 'done'}
-              </span>
-            )}
-            {!p.connected && <span className="tag tag--offline">offline</span>}
-            {onRemoveCompanion && p.isCompanion && (
-              <button type="button" className="btn btn--secondary btn--small" onClick={() => onRemoveCompanion(p.playerId)} aria-label={`Remove ${p.nickname}`}>
-                Remove
-              </button>
-            )}
+            <span className="player__tags">
+              {p.isStoryteller && <span className="tag tag--accent">storyteller</span>}
+              {!p.connected && <span className="tag tag--offline">offline</span>}
+              {waitingOn && <span className={`tag ${waiting ? 'tag--waiting' : 'tag--done'}`}>{waiting ? 'waiting…' : 'done'}</span>}
+              {onRemoveCompanion && p.isCompanion && (
+                <button type="button" className="btn btn--secondary btn--small" onClick={() => onRemoveCompanion(p.playerId)} aria-label={`Remove ${p.nickname}`}>
+                  Remove
+                </button>
+              )}
+            </span>
           </li>
         )
       })}
@@ -67,27 +65,47 @@ export function PlayerList({ players, youId, waitingOn, onRemoveCompanion }: Pla
   )
 }
 
+export function ScoreTrack({ score, target }: { score: number; target: number }) {
+  return (
+    <span className="score-track" role="img" aria-label={`${score} of ${target} points`}>
+      {Array.from({ length: target }, (_, i) => (
+        <span key={i} className={`score-track__pip${i < score ? ' score-track__pip--on' : ''}`} />
+      ))}
+    </span>
+  )
+}
+
 export function Scoreboard({ players, youId, winnerIds = [], targetScore }: { players: Player[]; youId: string; winnerIds?: string[]; targetScore?: number }) {
   const sorted = [...players].sort((a, b) => b.score - a.score)
+  const target = targetScore || 10
   return (
     <table className="scoreboard">
       <thead>
         <tr>
           <th>Player</th>
-          <th className="num">Score{targetScore ? ` / ${targetScore}` : ''}</th>
+          <th className="scoreboard__target">First to {target}</th>
+          <th className="num">Score</th>
         </tr>
       </thead>
       <tbody>
-        {sorted.map((p) => (
-          <tr key={p.playerId} className={winnerIds.includes(p.playerId) ? 'winner' : ''}>
-            <td>
-              <PlayerName player={p} />
-              {p.playerId === youId && <span className="muted"> (you)</span>}
-              {winnerIds.includes(p.playerId) && <span className="tag tag--winner">winner</span>}
-            </td>
-            <td className="num">{p.score}</td>
-          </tr>
-        ))}
+        {sorted.map((p) => {
+          const classes = [winnerIds.includes(p.playerId) && 'winner', p.playerId === youId && 'you'].filter(Boolean).join(' ')
+          return (
+            <tr key={p.playerId} className={classes || undefined}>
+              <td className="scoreboard__player">
+                <span className="scoreboard__name">
+                  <PlayerName player={p} />
+                  {p.playerId === youId && <span className="muted"> (you)</span>}
+                  {winnerIds.includes(p.playerId) && <span className="tag tag--accent">winner</span>}
+                </span>
+              </td>
+              <td className="scoreboard__track">
+                <ScoreTrack score={p.score} target={target} />
+              </td>
+              <td className="num scoreboard__score">{p.score}</td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )
@@ -109,10 +127,14 @@ export function StopButton({ onStop, label = 'Stop' }: { onStop: () => void; lab
         <button type="button" className="btn btn--secondary" onClick={() => setConfirming(false)}>
           Cancel
         </button>
-        <button type="button" className="btn btn--danger" onClick={onStop}>
+        <button type="button" className="btn btn--danger-fill" onClick={onStop}>
           Yes, stop
         </button>
       </div>
     </div>
   )
+}
+
+export function NoticeLabel({ kind }: { kind: 'error' | 'info' | 'warning' }) {
+  return <span className="notice__label">{kind}</span>
 }

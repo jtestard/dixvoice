@@ -46,7 +46,7 @@ func (m *Manager) CreateRoom(nickname string) (*Room, *Player, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	room := NewRoom(m.newCode())
-	p, err := room.Join(nickname)
+	p, err := room.Join(nickname, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -56,14 +56,14 @@ func (m *Manager) CreateRoom(nickname string) (*Room, *Player, error) {
 }
 
 // JoinRoom seats a new player in an existing room.
-func (m *Manager) JoinRoom(code, nickname string) (*Room, *Player, error) {
+func (m *Manager) JoinRoom(code, nickname string, companion bool) (*Room, *Player, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	room, ok := m.rooms[code]
 	if !ok {
 		return nil, nil, newError(CodeRoomNotFound, "unknown room code")
 	}
-	p, err := room.Join(nickname)
+	p, err := room.Join(nickname, companion)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -122,6 +122,21 @@ func (m *Manager) Leave(seat Seat) (deleted bool, err error) {
 		delete(m.rooms, seat.Room.Code)
 	}
 	return empty, nil
+}
+
+// RemoveCompanion removes a companion from a room and invalidates its token.
+func (m *Manager) RemoveCompanion(room *Room, playerID string) error {
+	if err := room.RemoveCompanion(playerID); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for t, s := range m.tokens {
+		if s.Room == room && s.PlayerID == playerID {
+			delete(m.tokens, t)
+		}
+	}
+	return nil
 }
 
 // Count returns the number of live rooms.

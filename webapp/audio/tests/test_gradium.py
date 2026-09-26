@@ -94,3 +94,46 @@ def test_unknown_voice_is_not_retried():
     with pytest.raises(UnknownVoice):
         asyncio.run(p.synthesize("hi", "nope", 0.7, 0))
     assert len(calls) == 1
+
+
+def speech_then_silence_stream(segments, words, early_words):
+    """segments: list of (seconds, loud?). Words in early_words are sent right after the first audio chunk (ahead
+    of the audio, as Gradium does); the other words are sent at the very end."""
+    sr = 24000
+    pcm = np.concatenate([
+        (0.3 * np.sin(np.arange(int(sr * d)) / 5) if loud else np.zeros(int(sr * d))) for d, loud in segments
+    ])
+    raw = (pcm * 32767).astype("<i2").tobytes()
+    chunks = [raw[i:i + 3840] for i in range(0, len(raw), 3840)]
+    lines = []
+    for k, c in enumerate(chunks):
+        lines.append({"type": "audio", "audio": base64.b64encode(c).decode()})
+        if k == 0:
+            lines += [{"type": "text", "text": w, "start_s": a, "stop_s": b} for w, a, b in words[:early_words]]
+    lines += [{"type": "text", "text": w, "start_s": a, "stop_s": b} for w, a, b in words[early_words:]]
+    lines.append({"type": "end_of_stream"})
+    return "\n".join(json.dumps(x) for x in lines) + "\n", len(pcm) / sr
+
+
+def test_early_stop_waits_for_the_last_word_after_a_pause():
+    # "Great. Just great.": voice, 0.6 s pause, last word, then 1 s of trailing silence.
+    body, full = speech_then_silence_stream(
+        [(0.5, True), (0.6, False), (0.3, True), (1.0, False)],
+        [("Great.", 0.0, 0.5), ("Just", 0.5, 1.1), ("great.", 1.1, 1.4)], early_words=2)
+    p = make(credits_or(lambda r: httpx.Response(200, text=body)))
+    syn = asyncio.run(p.synthesize("Great. Just great.", "voice", 0.7, 0))
+    kept = len(syn.pcm16) / 24000
+    assert syn.early_stop and 1.6 <= kept < full - 0.3  # the last word is kept, most of the trailing silence is not
+
+
+def test_no_early_stop_when_disabled_or_last_word_unheard():
+    body, full = speech_then_silence_stream(
+        [(0.5, True), (1.5, False)], [("One", 0.0, 0.5), ("two", 0.5, 1.0), ("three", 1.0, 1.5)], early_words=0)
+    p = make(credits_or(lambda r: httpx.Response(200, text=body)))
+    syn = asyncio.run(p.synthesize("One two three", "voice", 0.7, 0))
+    assert not syn.early_stop  # only 0 of 3 words stamped: never stop early
+
+    body, full = speech_then_silence_stream([(0.4, True), (1.2, False)], [("Behold!", 0.0, 0.4)], early_words=0)
+    p = make(credits_or(lambda r: httpx.Response(200, text=body)), early_stop_s=0)
+    syn = asyncio.run(p.synthesize("Behold!", "voice", 0.7, 0))
+    assert not syn.early_stop and abs(len(syn.pcm16) / 24000 - full) < 0.01

@@ -36,19 +36,24 @@ const (
 	PhaseReveal      Phase = "reveal"
 )
 
-// Clip is what players see of a sound: its id and where to play it from.
+// Clip is a sound as players see it: the audio service's AudioResponse with
+// id renamed clipId.
 type Clip struct {
-	ID  string `json:"clipId"`
-	URL string `json:"clipUrl"`
+	ID      string `json:"clipId"`
+	URL     string `json:"clipUrl"`
+	Text    string `json:"text"`
+	Emotion string `json:"emotion"`
+	VoiceID string `json:"voiceId"`
 }
 
 type Player struct {
-	ID        string
-	Nickname  string
-	Token     string
-	Connected bool
-	Score     int
-	Hand      []Clip
+	ID          string
+	Nickname    string
+	Token       string
+	Connected   bool
+	IsCompanion bool
+	Score       int
+	Hand        []Clip
 	// Submission is the clip the player put on the table this round ("" if none).
 	Submission string
 	// Vote is the clip the player voted for this round ("" if none).
@@ -128,8 +133,8 @@ func ValidateNickname(n string) (string, error) {
 }
 
 // Join adds a player to the room. It fails once the game has started or the
-// room is full.
-func (r *Room) Join(nickname string) (*Player, error) {
+// room is full. companion marks an AI companion.
+func (r *Room) Join(nickname string, companion bool) (*Player, error) {
 	nickname, err := ValidateNickname(nickname)
 	if err != nil {
 		return nil, err
@@ -144,9 +149,10 @@ func (r *Room) Join(nickname string) (*Player, error) {
 	}
 	r.nextPlayerID++
 	p := &Player{
-		ID:       fmt.Sprintf("p%d", r.nextPlayerID),
-		Nickname: nickname,
-		Token:    newToken(),
+		ID:          fmt.Sprintf("p%d", r.nextPlayerID),
+		Nickname:    nickname,
+		Token:       newToken(),
+		IsCompanion: companion,
 	}
 	r.Players = append(r.Players, p)
 	return p, nil
@@ -196,6 +202,40 @@ func (r *Room) Leave(id string) (empty bool, err error) {
 		}
 	}
 	return len(r.Players) == 0, newError(CodePlayerNotFound, "unknown player")
+}
+
+// CanAddCompanion checks that a companion may be added now: lobby or
+// finished, and a free seat.
+func (r *Room) CanAddCompanion() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Status == StatusPlaying {
+		return newError(CodeInvalidPhase, "companions can only be added between games")
+	}
+	if len(r.Players) >= MaxPlayers {
+		return newError(CodeRoomFull, "no more room")
+	}
+	return nil
+}
+
+// RemoveCompanion removes a companion player (lobby or finished only).
+func (r *Room) RemoveCompanion(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Status == StatusPlaying {
+		return newError(CodeInvalidPhase, "companions can only be removed between games")
+	}
+	for i, p := range r.Players {
+		if p.ID != id {
+			continue
+		}
+		if !p.IsCompanion {
+			return newError(CodeNotACompanion, "that player is not an AI companion")
+		}
+		r.Players = append(r.Players[:i], r.Players[i+1:]...)
+		return nil
+	}
+	return newError(CodePlayerNotFound, "unknown player")
 }
 
 // Start begins a new game. pool is the audio service's full list; the room
