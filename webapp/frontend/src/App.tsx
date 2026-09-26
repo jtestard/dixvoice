@@ -5,10 +5,28 @@ import { Lobby } from './components/Lobby'
 import { NoticeLabel } from './components/Common'
 import type { ClientMessage } from './types'
 import { useGame } from './useGame'
+import { useQuickStart } from './useQuickStart'
 
 export default function App() {
   const game = useGame()
   const { token, state, conn, notice, setToken, send, dismissNotice } = game
+  const { quick, begin, dismiss } = useQuickStart({ token, state, conn, notice, send })
+
+  const onJoined = useCallback(
+    (t: string) => {
+      dismiss()
+      setToken(t)
+    },
+    [setToken, dismiss],
+  )
+
+  const onQuickStart = useCallback(
+    (t: string) => {
+      begin()
+      setToken(t)
+    },
+    [setToken, begin],
+  )
 
   const sendAndMaybeLeave = useCallback(
     (msg: ClientMessage) => {
@@ -19,7 +37,7 @@ export default function App() {
   )
 
   if (!token) {
-    return <Home notice={notice} onDismissNotice={dismissNotice} onJoined={setToken} />
+    return <Home notice={notice} onDismissNotice={dismissNotice} onJoined={onJoined} onQuickStart={onQuickStart} />
   }
 
   return (
@@ -47,7 +65,7 @@ export default function App() {
           <p className="waiting">Loading room…</p>
         </main>
       ) : state.room.status === 'lobby' ? (
-        <Lobby state={state} send={sendAndMaybeLeave} />
+        <Lobby state={state} send={sendAndMaybeLeave} quick={quick} onDismissQuick={dismiss} />
       ) : state.room.status === 'finished' ? (
         <EndGame state={state} send={sendAndMaybeLeave} />
       ) : (

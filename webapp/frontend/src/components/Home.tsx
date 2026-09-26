@@ -7,11 +7,12 @@ interface Props {
   notice: Notice | null
   onDismissNotice: () => void
   onJoined: (token: string) => void
+  onQuickStart: (token: string) => void
 }
 
 const NICK_KEY = 'dixvoice.nickname'
 
-export function Home({ notice, onDismissNotice, onJoined }: Props) {
+export function Home({ notice, onDismissNotice, onJoined, onQuickStart }: Props) {
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICK_KEY) ?? '')
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -19,7 +20,7 @@ export function Home({ notice, onDismissNotice, onJoined }: Props) {
 
   const nick = nickname.trim()
 
-  async function run(action: () => Promise<{ token: string }>) {
+  async function run(action: () => Promise<{ token: string }>, done: (token: string) => void = onJoined) {
     setError(null)
     onDismissNotice()
     if (!nick) {
@@ -30,7 +31,7 @@ export function Home({ notice, onDismissNotice, onJoined }: Props) {
     try {
       localStorage.setItem(NICK_KEY, nick)
       const res = await action()
-      onJoined(res.token)
+      done(res.token)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Something went wrong.')
     } finally {
@@ -66,7 +67,14 @@ export function Home({ notice, onDismissNotice, onJoined }: Props) {
         />
       </label>
 
-      <button type="button" className="btn btn--primary btn--block" disabled={busy} onClick={() => run(() => createRoom(nick))}>
+      <button type="button" className="btn btn--primary btn--block btn--quick" disabled={busy || !nick} onClick={() => run(() => createRoom(nick), onQuickStart)}>
+        Quick start
+      </button>
+      <p className="hint">Play right away against 3 AI companions.</p>
+
+      <div className="divider">or play with friends</div>
+
+      <button type="button" className="btn btn--secondary btn--block" disabled={busy} onClick={() => run(() => createRoom(nick))}>
         Create a room
       </button>
 

@@ -21,10 +21,10 @@ export function PlayerName({ player }: { player: Player | undefined }) {
 
 export const MAX_PLAYERS = 8
 
-export function AddCompanionButton({ players, onAdd }: { players: Player[]; onAdd: () => void }) {
+export function AddCompanionButton({ players, onAdd, disabled = false }: { players: Player[]; onAdd: () => void; disabled?: boolean }) {
   if (players.length >= MAX_PLAYERS) return null
   return (
-    <button type="button" className="btn btn--secondary btn--block" onClick={onAdd}>
+    <button type="button" className="btn btn--secondary btn--block" disabled={disabled} onClick={onAdd}>
       Add AI companion
     </button>
   )
