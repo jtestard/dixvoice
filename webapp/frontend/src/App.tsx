@@ -62,7 +62,7 @@ export default function App() {
           </button>
         </div>
       )}
-      <TutorialLayout key={currentCue?.key ?? 'none'} cue={currentCue}>
+      <TutorialLayout cue={currentCue}>
         {!token ? (
           <Home notice={notice} onDismissNotice={dismissNotice} onJoined={setToken} />
         ) : !state ? (

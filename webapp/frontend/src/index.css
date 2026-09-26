@@ -1051,7 +1051,7 @@ h2 {
 }
 
 @media (min-width: 900px) {
-  .tutorial-layout--with-cue {
+  .tutorial-layout:has(> .tutorial-layout__aside) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
     align-content: start;

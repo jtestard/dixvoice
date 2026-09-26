@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
@@ -85,6 +85,21 @@ describe('tutorial interactions', () => {
     await userEvent.click(screen.getByRole('button', { name: 'How to play: Off' }))
     expect(localStorage.getItem('dixvoice.tutorial')).toBe('on')
     expect(screen.getByLabelText('How to play cue')).toHaveTextContent('STEP 1/4')
+  })
+
+  it('keeps the storyteller draft when toggling or dismissing guidance', async () => {
+    render(<App />)
+    receive(playingState('p1', { phase: 'storyteller' }))
+    await userEvent.click(within(screen.getByTestId('clip-h1')).getByRole('button', { name: 'Pick' }))
+    await userEvent.type(screen.getByLabelText('Your clue'), 'A quiet midnight train')
+    await userEvent.click(screen.getByRole('button', { name: 'How to play: On' }))
+    expect(screen.getByLabelText('Your clue')).toHaveValue('A quiet midnight train')
+    expect(screen.getByTestId('clip-h1')).toHaveClass('clip-card--selected')
+    expect(screen.getByRole('button', { name: 'Send clue' })).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', { name: 'How to play: Off' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Got it' }))
+    expect(screen.getByLabelText('Your clue')).toHaveValue('A quiet midnight train')
+    expect(screen.getByRole('button', { name: 'Send clue' })).toBeEnabled()
   })
 
   it('dismisses a card until the moment changes, including submitted and voted states', async () => {
