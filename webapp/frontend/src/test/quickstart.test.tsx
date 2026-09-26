@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
@@ -82,7 +82,7 @@ describe('Quick start', () => {
 
   it('is the first action on Home and is disabled until a nickname is entered', async () => {
     render(<App />)
-    const buttons = screen.getAllByRole('button')
+    const buttons = within(screen.getByRole('main')).getAllByRole('button')
     expect(buttons[0]).toHaveTextContent('Quick start')
     expect(buttons[0]).toHaveClass('btn--primary')
     expect(buttons[0]).toBeDisabled()

@@ -48,9 +48,9 @@ Terms, from largest to smallest:
   clips nobody has seen yet.
 - **Next round**: the storyteller role passes to the next player in join order (the first storyteller is picked at
   random). Any player can press "Next round" once the reveal is shown. There are no timers.
-- **End of game**: the game ends after the reveal in which one or more players reach **10 points**; the highest score
-  wins (ties share the win). It also ends early if the pool does not have enough unseen clips to deal the
-  next round (6 per player).
+- **End of game**: after a reveal, players see their scores and press "Next round". If one or more players have reached
+  **10 points**, the highest score wins (ties share the win) and the end screen appears instead of another round. The
+  session can also end early if the pool does not have enough unseen clips to deal the next round (6 per player).
 
 ## Rooms
 
@@ -62,8 +62,8 @@ Terms, from largest to smallest:
   Starting the game **locks the room**: nobody new can join.
 - **Any player can press Stop**. Stopping ejects everybody and **deletes the room**.
 - A room is also deleted when its last player leaves.
-- After the end of a game, players stay in the room and see the final scores. Any player can start a new game with the
-  same players (scores reset, discarded clips stay discarded) or stop to delete the room.
+- After the end of a game, players stay in the room and see the final scores. They can leave or stop the room; the
+  session is complete and cannot start another game.
 - If a player's connection drops, they keep their seat and can reconnect with their session token, even while the room
   is locked.
 
@@ -106,9 +106,35 @@ Screens and features:
 - **Round screens**, one per phase (see Game rules): the storyteller picks a clip and writes a clue; the others pick a
   clip; everyone votes on the shuffled clips; the reveal shows owners, votes and points won. Show who has already
   submitted or voted so players know who they are waiting for.
-- **Scoreboard** always reachable during the game, and an end-of-game screen with the final scores, "New game" and
+- **Scoreboard** always reachable during the game, and an end-of-game screen with the final scores, "Leave" and
   "Stop".
 - A **Stop** button is available during the game too; it asks for confirmation in the page (no browser dialog).
+
+Tutorial (cue cards):
+
+- A **cue card** tells the player what to do right now. It is chosen from the state the frontend already has: the
+  screen (Home, Lobby, Game, End of game), the round phase, whether the player is the storyteller, and whether they
+  have already submitted or voted. Frontend only: no backend or protocol change.
+- **Dismissable**: "Got it" hides the current card until the moment changes (next phase, or submitted/voted). A "How
+  to play" toggle in the game header turns the tutorial off or on; it is on by default and the choice is remembered on
+  the device.
+- **Placement**: a side column next to the game on screens 900px wide and up; on phones, a compact card at the top of
+  the screen content. It never covers the clips or the action buttons. Styled as a Tape Deck cue card (see
+  [docs/design.md](docs/design.md)).
+- Round phases are labelled `STEP 1/4` to `STEP 4/4`. The cards say:
+
+| Moment | Cue card |
+|---|---|
+| Home | Pick a nickname, then Quick start with AI companions, create a room, or join a friend's with their 4-letter code. |
+| Lobby | Share the room code. You need 4 to 8 players, and anyone can press Start. Short on players? Add an AI companion. |
+| 1/4 Storyteller, you | You're the storyteller. Tap your clips to listen, pick one, and write a clue. Aim for a clue some players get, but not all. |
+| 1/4 Storyteller, others | The storyteller is choosing a clip and writing a clue. Listen to your hand in the meantime. |
+| 2/4 Submit, to do | Pick the clip from your hand that best fits the clue. It will be shuffled in with the storyteller's. |
+| 2/4 Submit, storyteller or done | Waiting for everyone to pick a clip. |
+| 3/4 Vote, to do | Listen to every clip and vote for the one you think is the storyteller's. You can't vote for your own. |
+| 3/4 Vote, storyteller or done | Waiting for the votes. Storyteller: you want some players to find your clip, but not all. |
+| 4/4 Reveal | If everyone or no one found the storyteller's clip, the storyteller scores 0 and everyone else 2. Otherwise the storyteller and each finder score 3. You also get 1 point per vote your clip received. |
+| End of game | First to 10 points wins. The session is complete. Leave the room, or press Stop to close it for everyone. |
 
 Audio playback:
 
@@ -178,7 +204,7 @@ Client to server (`{"type": ..., ...}`):
 
 | Type | Fields | Allowed |
 | --- | --- | --- |
-| `start_game` | | lobby or finished, 4+ players |
+| `start_game` | | lobby, 4+ players |
 | `stop_game` | | any time |
 | `leave_room` | | lobby or finished |
 | `add_companion` | | lobby or finished, fewer than 8 players |
@@ -283,7 +309,7 @@ exact same HTTP and WebSocket protocol as the web app, from a separate service a
   - in the vote phase: vote for the clip on the table most likely to be the storyteller's, never its own.
   - They act after a short random delay (2–6 s) so the game feels natural, and fall back to a random valid move if
     Gemini fails or times out.
-- **Never** presses Start, Stop, Next round or New game: humans drive the game.
+- **Never** presses Start, Stop or Next round: humans drive the game.
 - **Lifetime**: a companion disconnects on `room_closed` (room stopped or companion removed). If its socket drops, it
   reconnects with its token. The service keeps all state in memory.
 - **Service**: Go (like the backend), `POST /companions` and `GET /healthz` on `PORT` (default 8080), configured

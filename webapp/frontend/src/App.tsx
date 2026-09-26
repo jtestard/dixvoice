@@ -1,15 +1,36 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { EndGame, Game } from './components/Game'
 import { Home } from './components/Home'
 import { Lobby } from './components/Lobby'
 import { NoticeLabel } from './components/Common'
+import { TutorialLayout } from './components/TutorialCard'
 import type { ClientMessage } from './types'
+import { tutorialCue, type TutorialScreen } from './tutorial'
 import { useGame } from './useGame'
 import { useQuickStart } from './useQuickStart'
+
+const TUTORIAL_KEY = 'dixvoice.tutorial'
 
 export default function App() {
   const game = useGame()
   const { token, state, conn, notice, setToken, send, dismissNotice } = game
+  const [tutorialEnabled, setTutorialEnabled] = useState(() => {
+    try {
+      return localStorage.getItem(TUTORIAL_KEY) !== 'off'
+    } catch {
+      return true
+    }
+  })
+
+  const toggleTutorial = () => {
+    const enabled = !tutorialEnabled
+    setTutorialEnabled(enabled)
+    try {
+      localStorage.setItem(TUTORIAL_KEY, enabled ? 'on' : 'off')
+    } catch {
+      return
+    }
+  }
   const { quick, begin, dismiss } = useQuickStart({ token, state, conn, notice, send })
 
   const onJoined = useCallback(
@@ -36,13 +57,12 @@ export default function App() {
     [send, setToken],
   )
 
-  if (!token) {
-    return <Home notice={notice} onDismissNotice={dismissNotice} onJoined={onJoined} onQuickStart={onQuickStart} />
-  }
+  const screen: TutorialScreen = !token ? 'home' : state?.room.status === 'lobby' ? 'lobby' : state?.room.status === 'finished' ? 'endGame' : 'game'
+  const currentCue = tutorialEnabled ? tutorialCue(state, screen) : null
 
   return (
     <>
-      {conn !== 'open' && (
+      {token && conn !== 'open' && (
         <div className="banner banner--conn" role="status">
           <NoticeLabel kind="warning" />
           <span className="banner__text">{conn === 'reconnecting' ? 'Connection lost. Reconnecting…' : 'Connecting…'}</span>
@@ -51,7 +71,7 @@ export default function App() {
           </button>
         </div>
       )}
-      {notice && (
+      {token && notice && (
         <div className={`banner banner--${notice.kind}`} role="alert">
           <NoticeLabel kind={notice.kind} />
           <span className="banner__text">{notice.text}</span>
@@ -60,17 +80,21 @@ export default function App() {
           </button>
         </div>
       )}
-      {!state ? (
-        <main className="screen">
-          <p className="waiting">Loading room…</p>
-        </main>
-      ) : state.room.status === 'lobby' ? (
-        <Lobby state={state} send={sendAndMaybeLeave} quick={quick} onDismissQuick={dismiss} />
-      ) : state.room.status === 'finished' ? (
-        <EndGame state={state} send={sendAndMaybeLeave} />
-      ) : (
-        <Game state={state} send={send} />
-      )}
+      <TutorialLayout cue={currentCue}>
+        {!token ? (
+          <Home notice={notice} onDismissNotice={dismissNotice} onJoined={onJoined} onQuickStart={onQuickStart} />
+        ) : !state ? (
+          <main className="screen">
+            <p className="waiting">Loading room…</p>
+          </main>
+        ) : state.room.status === 'lobby' ? (
+          <Lobby state={state} send={sendAndMaybeLeave} quick={quick} onDismissQuick={dismiss} />
+        ) : state.room.status === 'finished' ? (
+          <EndGame state={state} send={sendAndMaybeLeave} />
+        ) : (
+          <Game state={state} send={send} tutorialEnabled={tutorialEnabled} onToggleTutorial={toggleTutorial} />
+        )}
+      </TutorialLayout>
     </>
   )
 }

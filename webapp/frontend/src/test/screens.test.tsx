@@ -152,13 +152,13 @@ describe('Scoreboard and end of game', () => {
     expect(within(table).getByText('7')).toBeInTheDocument()
   })
 
-  it('shows final scores, the winner, New game and Stop', async () => {
+  it('shows final scores, the winner, Leave and Stop with no replay', () => {
     const send = vi.fn()
     render(<EndGame state={finishedState()} send={send} />)
     expect(screen.getByText('Chloé wins!')).toBeInTheDocument()
     expect(screen.getByText('winner')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'New game' }))
-    expect(send).toHaveBeenCalledWith({ type: 'start_game' })
+    expect(screen.queryByRole('button', { name: 'New game' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Leave' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument()
   })
 
