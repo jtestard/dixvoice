@@ -171,7 +171,7 @@ function toVote(room) {
   const r = room.round
   r.phase = 'vote'
   // The table never tells a custom clip apart.
-  r.table = shuffle(room.players.map((p) => p.submission).filter(Boolean).map(({ custom, ...c }) => c))
+  r.table = shuffle(room.players.map((p) => p.submission).filter(Boolean).map(({ custom: _custom, ...c }) => c))
   scheduleBots(room)
 }
 
