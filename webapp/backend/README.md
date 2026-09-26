@@ -40,7 +40,7 @@ curl -s localhost:8080/audio/list | head -c 200
 | --- | --- | --- |
 | `PORT` | `8080` | Listen port. |
 | `AUDIO_SERVICE_URL` | `http://localhost:8081` | Base URL of the audio service (or of the mock). |
-| `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated origins allowed for CORS and WebSocket upgrades. |
+| `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated origins allowed for CORS and WebSocket upgrades, or `*` for any origin (production uses `*`: sessions are tokens, not cookies). |
 
 Mock audio service: `-addr` (`MOCKAUDIO_ADDR`, default `:8081`), `-count` (default 300) and `-public-url`
 (`MOCKAUDIO_PUBLIC_URL`) to force the prefix of the `clipUrl`s; by default it is derived from the request's `Host`.
@@ -68,7 +68,7 @@ docker run --rm -p 8080:8080 -e AUDIO_SERVICE_URL=http://host.docker.internal:80
 ```
 
 Kubernetes manifests live in `deploy/k8s/` at the repository root. In production the backend is served at
-`https://dixvoice.api.gcast.app` behind a Contour ingress (TLS terminated upstream); set
-`ALLOWED_ORIGINS=https://dixvoice-web.api.gcast.app` (comma-separated for more) so the frontend origin passes the CORS
-and WebSocket origin checks. The server pings every WebSocket connection every 20 s so idle connections stay open
+`https://dixvoice.api.gcast.app` behind a Contour ingress (TLS terminated upstream); production
+sets `ALLOWED_ORIGINS=*` so the frontend passes the CORS and WebSocket origin checks wherever it is hosted (our web
+deployment, the sample page, itch.io). The server pings every WebSocket connection every 20 s so idle connections stay open
 through the proxy.

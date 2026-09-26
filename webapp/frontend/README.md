@@ -13,11 +13,12 @@ npm run dev      # Vite dev server on http://localhost:5173 (terminal 2)
 
 The mock (`mock/server.mjs`) implements the Protocol, including `add_companion` / `remove_companion`, with a few
 sample mp3 tones: press "Add AI companion" three times in the lobby and one person can click through a whole game
-alone. Mock companions play random valid moves ~1.5 s after each phase change. Options (env vars): `PORT` (8080),
-`MOCK_BOTS` (0, extra non-companion bots pre-seated in every room), `MOCK_BOT_DELAY_MS` (1500), `MOCK_POOL_SIZE`
-(240 sounds), `MOCK_COMPANIONS_DOWN=1` (make `add_companion` fail with `companion_unavailable`),
-`MOCK_GENERATE_DELAY_MS` (1200, time to "generate" a custom sound; a text with digits or the word "fail" makes the
-generation fail, to try the error states).
+alone, or press "Quick start" on Home to do all of that in one tap. Mock companions join ~0.8 s after
+`add_companion` and play random valid moves ~1.5 s after each phase change. Options (env vars): `PORT` (8080),
+`MOCK_BOTS` (0, extra non-companion bots pre-seated in every room), `MOCK_BOT_DELAY_MS` (1500),
+`MOCK_COMPANION_DELAY_MS` (800), `MOCK_POOL_SIZE` (240 sounds), `MOCK_COMPANIONS_DOWN=1` (make `add_companion` fail
+with `companion_unavailable`), `MOCK_GENERATE_DELAY_MS` (1200, time to "generate" a custom sound; a text with digits
+or the word "fail" makes the generation fail, to try the error states).
 
 Against a real backend, point `VITE_BACKEND_URL` at it (copy `.env.example` to `.env.local`):
 

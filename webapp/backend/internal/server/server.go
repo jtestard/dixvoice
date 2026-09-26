@@ -21,8 +21,9 @@ import (
 
 type Config struct {
 	// AllowedOrigins are the browser origins accepted for CORS and WebSocket
-	// upgrades, e.g. "http://localhost:5173". Requests without an Origin
-	// header (non-browser clients) are always accepted.
+	// upgrades, e.g. "http://localhost:5173", or "*" for any origin (safe here:
+	// sessions are tokens passed explicitly, never cookies). Requests without an
+	// Origin header (non-browser clients) are always accepted.
 	AllowedOrigins []string
 }
 
@@ -33,6 +34,7 @@ type Server struct {
 	audio      *audio.Client
 	companions *companion.Client
 	origins    map[string]bool
+	anyOrigin  bool
 	hosts      []string
 
 	mu    sync.Mutex
@@ -55,6 +57,11 @@ func New(cfg Config, rooms *game.Manager, audioClient *audio.Client, companions 
 	for _, o := range cfg.AllowedOrigins {
 		o = strings.TrimRight(strings.TrimSpace(o), "/")
 		if o == "" {
+			continue
+		}
+		if o == "*" {
+			s.anyOrigin = true
+			s.hosts = append(s.hosts, "*")
 			continue
 		}
 		s.origins[o] = true
@@ -81,7 +88,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); origin != "" && s.origins[origin] {
+		if origin := r.Header.Get("Origin"); origin != "" && (s.anyOrigin || s.origins[origin]) {
 			h := w.Header()
 			h.Set("Access-Control-Allow-Origin", origin)
 			h.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -476,7 +483,11 @@ func (s *Server) handleMessage(ctx context.Context, seat game.Seat, c *client, m
 		}
 	case "next_round":
 		var pool []game.Clip
-		pool, err = s.pool(ctx)
+		var needsPool bool
+		needsPool, err = room.NeedsNextRoundPool()
+		if err == nil && needsPool {
+			pool, err = s.pool(ctx)
+		}
 		if err == nil {
 			err = room.NextRound(pool)
 		}

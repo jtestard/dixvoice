@@ -311,23 +311,14 @@ func TestUsedSoundsNeverRedealt(t *testing.T) {
 		}
 	}
 	record()
-	games := 0
-	for games < 3 {
+	for r.Status == StatusPlaying {
 		playRound(t, r)
-		if r.Status == StatusFinished {
-			games++
-			if err := r.Start(p); err != nil {
-				t.Fatal(err)
-			}
-			for _, pl := range r.Players {
-				if pl.Score != 0 {
-					t.Fatal("scores must reset on a new game")
-				}
-			}
-		} else if err := r.NextRound(p); err != nil {
+		if err := r.NextRound(p); err != nil {
 			t.Fatal(err)
 		}
-		record()
+		if r.Status == StatusPlaying {
+			record()
+		}
 	}
 	if len(seen) != len(r.Used) {
 		t.Fatalf("used set %d differs from dealt clips %d", len(r.Used), len(seen))
@@ -340,10 +331,22 @@ func TestGameEndsAtTargetScore(t *testing.T) {
 	for r.Status == StatusPlaying {
 		playRound(t, r)
 		rounds++
-		if r.Status == StatusPlaying {
-			if err := r.NextRound(pool(300)); err != nil {
-				t.Fatal(err)
-			}
+		if r.Status != StatusPlaying || r.Round.Phase != PhaseReveal || r.Round.Reveal == nil || len(r.Winners) != 0 {
+			t.Fatal("scored reveal must remain visible until Next round")
+		}
+		needsPool, err := r.NeedsNextRoundPool()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if needsPool == r.reachedTarget() {
+			t.Fatal("pool should only be required when the target has not been reached")
+		}
+		var nextPool []Clip
+		if needsPool {
+			nextPool = pool(300)
+		}
+		if err := r.NextRound(nextPool); err != nil {
+			t.Fatal(err)
 		}
 	}
 	// Non-storytellers gain 2 per round. With 4 players everyone has been
@@ -376,25 +379,11 @@ func TestGameEndsAtTargetScore(t *testing.T) {
 	// The room stays locked once finished, but players may leave.
 	_, err := r.Join("late", false)
 	wantCode(t, err, CodeGameStarted)
-	// A new game can start in the same room with the same players.
-	if err := r.Start(pool(300)); err != nil {
-		t.Fatal(err)
-	}
-	if r.Status != StatusPlaying || r.Round.Number != 1 || len(r.Winners) != 0 {
-		t.Fatal("new game did not reset")
-	}
-	for r.Status == StatusPlaying {
-		playRound(t, r)
-		if r.Status == StatusPlaying {
-			if err := r.NextRound(pool(300)); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
+	wantCode(t, r.Start(pool(300)), CodeInvalidPhase)
 	if _, err := r.Leave(r.Players[3].ID); err != nil {
 		t.Fatal(err)
 	}
-	wantCode(t, r.Start(pool(300)), CodeNotEnoughPlayers)
+	wantCode(t, r.Start(pool(300)), CodeInvalidPhase)
 }
 
 func TestGameEndsWhenPoolExhausted(t *testing.T) {
@@ -415,8 +404,7 @@ func TestGameEndsWhenPoolExhausted(t *testing.T) {
 	if r.Status != StatusFinished || len(r.Winners) != 3 {
 		t.Fatalf("expected finished with 3 tied winners, got %s %v", r.Status, r.Winners)
 	}
-	// Used sounds persist: a new game cannot be dealt from the same pool.
-	wantCode(t, r.Start(p), CodeNotEnoughSounds)
+	wantCode(t, r.Start(p), CodeInvalidPhase)
 }
 
 func TestSnapshotVisibility(t *testing.T) {
@@ -607,7 +595,7 @@ func TestCompanions(t *testing.T) {
 	if len(r.Players) != 3 || r.player(bot.ID) != nil {
 		t.Fatal("companion still in room")
 	}
-	wantCode(t, r.Start(pool(300)), CodeNotEnoughPlayers)
+	wantCode(t, r.Start(pool(300)), CodeInvalidPhase)
 
 	// Full room.
 	full := NewRoom("FULL")

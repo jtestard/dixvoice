@@ -5,9 +5,9 @@ service, library and generated, with text search, emotion / voice filters, sorti
 kept in the URL query string (e.g. `?q=gap&emotion=neutral`) so a view can be shared.
 
 It loads `https://dixvoice.api.gcast.app/audio/list` (the backend's proxy of the audio service, which returns full
-AudioResponse objects) and plays each clip from its `clipUrl` on the CDN. The backend must list the page's origin in
-`ALLOWED_ORIGINS` (`https://dixvoice-sample.api.gcast.app` in production; `http://localhost:8080` is not allowed, so
-locally point `API` in `app.js` at a local backend started with that origin).
+AudioResponse objects) and plays each clip from its `clipUrl` on the CDN. The backend must allow the page's origin:
+production uses `ALLOWED_ORIGINS=*`; locally, point `API` in `app.js` at a local backend started with
+`ALLOWED_ORIGINS=*` or with that origin.
 
 ## Docker
 

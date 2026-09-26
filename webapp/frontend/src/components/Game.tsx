@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { roundResult } from '../roundResult'
 import type { ClientMessage, CustomSlotState, GameState, Player, Round } from '../types'
 import { ClipCard, FaceDownCard } from './ClipCard'
 import { CreateSoundForm, CustomSlotCard, type SoundDraft } from './CustomSound'
-import { AddCompanionButton, PlayerList, PlayerName, Scoreboard, StopButton } from './Common'
+import { PlayerList, PlayerName, Scoreboard, StopButton } from './Common'
 
 interface Props {
   state: GameState
@@ -16,7 +17,7 @@ const PHASE_TITLE: Record<Round['phase'], string> = {
   reveal: 'Reveal',
 }
 
-export function Game({ state, send }: Props) {
+export function Game({ state, send, tutorialEnabled, onToggleTutorial }: Props & { tutorialEnabled?: boolean; onToggleTutorial?: () => void }) {
   const [showScores, setShowScores] = useState(false)
   const { round } = state
   const you = state.you.playerId
@@ -36,9 +37,16 @@ export function Game({ state, send }: Props) {
             </span>
           )}
         </div>
-        <button type="button" className="btn btn--secondary" onClick={() => setShowScores((s) => !s)} aria-expanded={showScores}>
-          {showScores ? 'Hide scores' : 'Scores'}
-        </button>
+        <div className="game-header__actions">
+          {onToggleTutorial && (
+            <button type="button" className="btn btn--secondary" onClick={onToggleTutorial} aria-pressed={tutorialEnabled}>
+              How to play: {tutorialEnabled ? 'On' : 'Off'}
+            </button>
+          )}
+          <button type="button" className="btn btn--secondary" onClick={() => setShowScores((s) => !s)} aria-expanded={showScores}>
+            {showScores ? 'Hide scores' : 'Scores'}
+          </button>
+        </div>
       </header>
 
       {showScores && (
@@ -260,6 +268,7 @@ function VotePhase({ state, send, isStoryteller }: Props & { isStoryteller: bool
 function RevealPhase({ state, send }: Props) {
   const round = state.round!
   const reveal = round.reveal
+  const result = roundResult(state)
   const byId = new Map(state.players.map((p) => [p.playerId, p]))
   const name = (id: string) => {
     const p = byId.get(id)
@@ -271,6 +280,13 @@ function RevealPhase({ state, send }: Props) {
       <Clue round={round} />
       {reveal && (
         <>
+          {result && (
+            <section className={`round-result round-result--${result.tone}`} aria-label="Your round result" role="status">
+              <strong className="round-result__label">{result.label} · +{result.points}</strong>
+              <p>{result.reason}</p>
+              <p className="round-result__breakdown">{result.breakdown}</p>
+            </section>
+          )}
           <section aria-label="Results">
             <div className="hand hand--flip">
               {reveal.results.map((r, i) => {
@@ -335,17 +351,13 @@ export function EndGame({ state, send }: Props) {
   return (
     <main className="screen">
       <h1 className="title">Game over</h1>
-      <p className="winner-line">
+      <p className={`winner-line${winners.length ? won ? ' winner-line--success' : ' winner-line--failure' : ''}`}>
         {won ? 'You win!' : winners.length ? `${winners.join(' and ')} ${winners.length > 1 ? 'win' : 'wins'}!` : 'No winner.'}
       </p>
       <Scoreboard players={state.players} youId={you} winnerIds={state.winnerIds} targetScore={state.room.targetScore} />
       <h2>Players</h2>
-      <PlayerList players={state.players} youId={you} onRemoveCompanion={(playerId) => send({ type: 'remove_companion', playerId })} />
+      <PlayerList players={state.players} youId={you} />
       <div className="actions">
-        <AddCompanionButton players={state.players} onAdd={() => send({ type: 'add_companion' })} />
-        <button type="button" className="btn btn--primary btn--block" disabled={state.players.length < 4} onClick={() => send({ type: 'start_game' })}>
-          New game
-        </button>
         <div className="row">
           <button type="button" className="btn btn--secondary" onClick={() => send({ type: 'leave_room' })}>
             Leave
