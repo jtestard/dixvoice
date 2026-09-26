@@ -129,7 +129,7 @@ describe('Reveal phase', () => {
     const st = screen.getByTestId('clip-t1')
     expect(within(st).getByText('storyteller')).toBeInTheDocument()
     expect(within(st).getByText('Ana')).toBeInTheDocument()
-    expect(within(st).getByText('Me')).toBeInTheDocument()
+    expect(within(st).getByText('You')).toBeInTheDocument()
     expect(within(screen.getByTestId('clip-t3')).getByText('none')).toBeInTheDocument()
     expect(screen.getByText('+4')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Next round' }))

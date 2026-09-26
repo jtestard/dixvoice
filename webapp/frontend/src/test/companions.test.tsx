@@ -93,8 +93,9 @@ describe('Bot badge during the game', () => {
     render(<Game state={withCompanionStoryteller(REVEAL_ROUND)} send={vi.fn()} />)
     const st = screen.getByTestId('clip-t1')
     expect(within(st).getByTestId('bot-badge')).toBeInTheDocument()
-    // storyteller line, owner of t1, and the points list
-    expect(screen.getAllByTestId('bot-badge').length).toBeGreaterThanOrEqual(3)
+    // owner of t1 on the board, and the storyteller's seat on the board rail
+    const rail = screen.getByRole('list', { name: 'Players' })
+    expect(within(rail).getAllByTestId('bot-badge').length).toBeGreaterThanOrEqual(1)
   })
 })
 
