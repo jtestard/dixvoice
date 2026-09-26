@@ -204,13 +204,13 @@ func (r *Room) Leave(id string) (empty bool, err error) {
 	return len(r.Players) == 0, newError(CodePlayerNotFound, "unknown player")
 }
 
-// CanAddCompanion checks that a companion may be added now: lobby or
-// finished, and a free seat.
+// CanAddCompanion checks that a companion may be added now: lobby only (the
+// companion joins like any player, and Join is lobby only) with a free seat.
 func (r *Room) CanAddCompanion() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.Status == StatusPlaying {
-		return newError(CodeInvalidPhase, "companions can only be added between games")
+	if r.Status != StatusLobby {
+		return newError(CodeInvalidPhase, "companions can only be added in the lobby")
 	}
 	if len(r.Players) >= MaxPlayers {
 		return newError(CodeRoomFull, "no more room")
