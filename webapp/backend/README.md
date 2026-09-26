@@ -11,7 +11,6 @@ All state is in memory. The first version deals every clip from the audio servic
 - `internal/game`: rooms, players, phases, scoring and per-player state snapshots (no I/O).
 - `internal/server`: HTTP endpoints, CORS, WebSocket protocol.
 - `internal/audio`: client of the audio service; `internal/mockaudio`: the mock as a library.
-- `k8s/`: Deployment (1 replica) and ClusterIP Service.
 
 ## Run locally
 
@@ -55,12 +54,19 @@ go test -race ./...
 `internal/server` starts the mock audio service and the backend in-process and plays a whole game over WebSockets
 with 4 clients, plus HTTP endpoints, CORS, reconnect, leave and stop.
 
-## Docker and Kubernetes
+## Docker
+
+The image is built for the arm64 cluster nodes with `webapp/backend` as the build context; the Go binary is
+cross-compiled from buildx's `TARGETARCH` (`CGO_ENABLED=0`) into a distroless image running as non-root:
 
 ```sh
-docker build -t dixvoice-backend .
+docker buildx build --platform linux/arm64 -t dixvoice-backend .
+docker build -t dixvoice-backend .   # local, native arch
 docker run --rm -p 8080:8080 -e AUDIO_SERVICE_URL=http://host.docker.internal:8081 dixvoice-backend
 ```
 
-`k8s/deployment.yaml` and `k8s/service.yaml` contain `TBD` placeholders for the namespace, the image and the audio
-service URL. No Ingress yet: test with `kubectl port-forward svc/dixvoice-backend 8080:80`.
+Kubernetes manifests live in `deploy/k8s/` at the repository root. In production the backend is served at
+`https://dixvoice.api.gcast.app` behind a Contour ingress (TLS terminated upstream); set
+`ALLOWED_ORIGINS=https://dixvoice-web.api.gcast.app` (comma-separated for more) so the frontend origin passes the CORS
+and WebSocket origin checks. The server pings every WebSocket connection every 20 s so idle connections stay open
+through the proxy.

@@ -453,6 +453,72 @@ func TestLeaveDeletesEmptyRoom(t *testing.T) {
 	}
 }
 
+func TestKeepAlivePings(t *testing.T) {
+	old := pingInterval
+	pingInterval = 30 * time.Millisecond
+	t.Cleanup(func() { pingInterval = old })
+
+	e := newEnv(t)
+	_, ps := setupRoom(t, e, 1)
+	// Several ping intervals go by while the client only reads (pongs are
+	// answered by the library's read loop); the connection must survive.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	type result struct {
+		data []byte
+		err  error
+	}
+	got := make(chan result, 1)
+	go func() {
+		_, data, err := ps[0].conn.Read(ctx)
+		got <- result{data, err}
+	}()
+	time.Sleep(200 * time.Millisecond)
+	ps[0].send(map[string]any{"type": "start_game"})
+	r := <-got
+	if r.err != nil {
+		t.Fatalf("connection did not stay open: %v", r.err)
+	}
+	var msg struct {
+		Type string `json:"type"`
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(r.data, &msg); err != nil || msg.Type != "error" || msg.Code != game.CodeNotEnoughPlayers {
+		t.Fatalf("unexpected message after idle period: %s (%v)", r.data, err)
+	}
+}
+
+func TestProductionOriginAllowed(t *testing.T) {
+	const prod = "https://dixvoice-web.api.gcast.app"
+	mock := httptest.NewServer((&mockaudio.Service{Count: 30}).Handler())
+	t.Cleanup(mock.Close)
+	srv := New(Config{AllowedOrigins: []string{prod, origin}}, game.NewManager(), audio.NewClient(mock.URL),
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	backend := httptest.NewServer(srv.Handler())
+	t.Cleanup(backend.Close)
+
+	req, _ := http.NewRequest(http.MethodPost, backend.URL+"/rooms", strings.NewReader(`{"nickname":"Ana"}`))
+	req.Header.Set("Origin", prod)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusCreated || resp.Header.Get("Access-Control-Allow-Origin") != prod {
+		t.Fatalf("cors for prod origin: %d %v", resp.StatusCode, resp.Header)
+	}
+	var body map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	wsURL := strings.Replace(backend.URL, "http://", "ws://", 1) + "/ws?token=" + body["token"]
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {prod}}})
+	if err != nil {
+		t.Fatalf("ws from prod origin rejected: %v", err)
+	}
+	_ = conn.CloseNow()
+}
+
 func TestWebSocketOriginCheck(t *testing.T) {
 	e := newEnv(t)
 	_, body := e.post("/rooms", map[string]string{"nickname": "Ana"})

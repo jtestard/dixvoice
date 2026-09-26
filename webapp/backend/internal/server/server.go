@@ -266,7 +266,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	seat.Room.SetConnected(seat.PlayerID, true)
 	s.broadcast(seat.Room)
 
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	go s.keepAlive(ctx, conn)
+
 	ejected := false
 	for {
 		// Read runs until the socket closes; after an eject it only serves
@@ -284,6 +287,34 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		ejected = s.handleMessage(ctx, seat, c, msg)
+	}
+}
+
+// pingInterval is how often idle WebSocket connections are pinged so that
+// proxies in front of the server keep them open.
+var pingInterval = 20 * time.Second
+
+// keepAlive pings the connection until ctx is done; a failed ping (no pong
+// within the interval) closes the connection so the read loop notices.
+func (s *Server) keepAlive(ctx context.Context, conn *websocket.Conn) {
+	t := time.NewTicker(pingInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		pingCtx, cancel := context.WithTimeout(ctx, pingInterval)
+		err := conn.Ping(pingCtx)
+		cancel()
+		if err != nil {
+			if ctx.Err() == nil {
+				s.log.Debug("ping failed, closing connection", "err", err)
+				_ = conn.CloseNow()
+			}
+			return
+		}
 	}
 }
 
