@@ -9,30 +9,17 @@ export interface TutorialCue {
 }
 
 export function tutorialCue(state: GameState | null, screen: TutorialScreen): TutorialCue | null {
-  if (screen === 'home') {
-    return {
-      key: 'home',
-      label: 'HOW TO PLAY',
-      body: "Pick a nickname, then Quick start with AI companions, create a room, or join a friend's with their 4-letter code.",
-    }
-  }
-  if (!state) return null
+  // Home explains itself (table illustration + 4 steps); the end screen needs no cue.
+  if (screen === 'home' || screen === 'endGame' || !state) return null
 
   const room = state.room.code
   if (screen === 'lobby') {
     return {
       key: `${room}:lobby`,
       label: 'HOW TO PLAY',
-      body: `Share the room code. You need 4 to 8 players, and anyone can press Start.${
-        state.players.length < 8 ? ' Short on players? Add an AI companion.' : ''
+      body: `Share the room code. 4 to 8 players sit at the table; anyone can press Start.${
+        state.players.length < 4 ? ' Short on players? Add an AI companion.' : ''
       }`,
-    }
-  }
-  if (screen === 'endGame') {
-    return {
-      key: `${room}:endGame`,
-      label: 'HOW TO PLAY',
-      body: 'First to 10 points wins. The session is complete. Leave the room, or press Stop to close it for everyone.',
     }
   }
 
@@ -47,17 +34,15 @@ export function tutorialCue(state: GameState | null, screen: TutorialScreen): Tu
         key: `${moment}:${storyteller ? 'storyteller' : 'player'}`,
         label: 'STEP 1/4',
         body: storyteller
-          ? "You're the storyteller. Tap your clips to listen, pick one, and write a clue. Aim for a clue some players get, but not all."
-          : 'The storyteller is choosing a clip and writing a clue. Listen to your hand in the meantime.',
+          ? "You're the storyteller: tap clips to listen, pick one and write a clue some players will get, but not all."
+          : 'The storyteller is picking a clip and writing a clue. Listen to your hand meanwhile.',
       }
     case 'submit': {
       const waiting = storyteller || round.yourSubmission !== null
       return {
         key: `${moment}:${waiting ? 'waiting' : 'pick'}`,
         label: 'STEP 2/4',
-        body: waiting
-          ? 'Waiting for everyone to pick a clip.'
-          : "Pick the clip from your hand that best fits the clue. It will be shuffled in with the storyteller's.",
+        body: waiting ? 'Everyone puts a clip face down on the table.' : "Pick the clip from your hand that best fits the clue. It's shuffled in with the storyteller's.",
       }
     }
     case 'vote': {
@@ -65,16 +50,14 @@ export function tutorialCue(state: GameState | null, screen: TutorialScreen): Tu
       return {
         key: `${moment}:${waiting ? 'waiting' : 'vote'}`,
         label: 'STEP 3/4',
-        body: waiting
-          ? 'Waiting for the votes. Storyteller: you want some players to find your clip, but not all.'
-          : "Listen to every clip and vote for the one you think is the storyteller's. You can't vote for your own.",
+        body: waiting ? 'Waiting for the votes.' : "Listen to every clip and vote for the storyteller's. Not your own.",
       }
     }
     case 'reveal':
       return {
         key: moment,
         label: 'STEP 4/4',
-        body: "If everyone or no one found the storyteller's clip, the storyteller scores 0 and everyone else 2. Otherwise the storyteller and each finder score 3. You also get 1 point per vote your clip received.",
+        body: "The green clip is the storyteller's. Finders and storyteller score 3; if everyone or no one found it, others get 2. +1 per vote on your clip.",
       }
   }
 }

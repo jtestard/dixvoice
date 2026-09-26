@@ -1,33 +1,21 @@
-import { useState, type ReactNode } from 'react'
-import type { TutorialCue } from '../tutorial'
+import { useState } from 'react'
+import type { TutorialCue as Cue } from '../tutorial'
 
-export function TutorialLayout({
-  cue,
-  children,
-}: {
-  cue: TutorialCue | null
-  children: ReactNode
-}) {
-  return (
-    <div className="tutorial-layout">
-      {cue && <TutorialAside key={cue.key} cue={cue} />}
-      <div className="tutorial-layout__content">{children}</div>
-    </div>
-  )
+/** Compact cue card: one line of advice and a ✕. Remounts (and re-animates) when `cue.key` changes. */
+export function TutorialCue({ cue }: { cue: Cue | null }) {
+  if (!cue) return null
+  return <TutorialCueInner key={cue.key} cue={cue} />
 }
 
-function TutorialAside({ cue }: { cue: TutorialCue }) {
+function TutorialCueInner({ cue }: { cue: Cue }) {
   const [dismissed, setDismissed] = useState(false)
   if (dismissed) return null
   return (
-    <aside className="tutorial-layout__aside" aria-label="How to play cue">
-      <div className="tutorial-card">
-        <span className="tutorial-card__label">{cue.label}</span>
-        <p>{cue.body}</p>
-        <button type="button" className="btn btn--secondary tutorial-card__dismiss" onClick={() => setDismissed(true)}>
-          Got it
-        </button>
-      </div>
+    <aside className="tutorial-card" aria-label="How to play cue">
+      <p>{cue.body}</p>
+      <button type="button" className="btn tutorial-card__dismiss" onClick={() => setDismissed(true)} aria-label="Got it">
+        ✕
+      </button>
     </aside>
   )
 }

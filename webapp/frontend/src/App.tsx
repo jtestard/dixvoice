@@ -1,13 +1,14 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { EndGame, Game } from './components/Game'
 import { Home } from './components/Home'
 import { Lobby } from './components/Lobby'
 import { NoticeLabel } from './components/Common'
-import { TutorialLayout } from './components/TutorialCard'
+import { sfx } from './sfx'
 import type { ClientMessage } from './types'
 import { tutorialCue, type TutorialScreen } from './tutorial'
 import { useGame } from './useGame'
 import { useQuickStart } from './useQuickStart'
+import { useSfxCues } from './useSfxCues'
 
 const TUTORIAL_KEY = 'dixvoice.tutorial'
 
@@ -21,6 +22,18 @@ export default function App() {
       return true
     }
   })
+
+  useSfxCues(state, notice)
+
+  // One click sound for every .btn, delegated.
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest?.('.btn')) sfx('click')
+    }
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [])
 
   const toggleTutorial = () => {
     const enabled = !tutorialEnabled
@@ -80,21 +93,19 @@ export default function App() {
           </button>
         </div>
       )}
-      <TutorialLayout cue={currentCue}>
-        {!token ? (
-          <Home notice={notice} onDismissNotice={dismissNotice} onJoined={onJoined} onQuickStart={onQuickStart} />
-        ) : !state ? (
-          <main className="screen">
-            <p className="waiting">Loading room…</p>
-          </main>
-        ) : state.room.status === 'lobby' ? (
-          <Lobby state={state} send={sendAndMaybeLeave} quick={quick} onDismissQuick={dismiss} />
-        ) : state.room.status === 'finished' ? (
-          <EndGame state={state} send={sendAndMaybeLeave} />
-        ) : (
-          <Game state={state} send={send} tutorialEnabled={tutorialEnabled} onToggleTutorial={toggleTutorial} />
-        )}
-      </TutorialLayout>
+      {!token ? (
+        <Home notice={notice} onDismissNotice={dismissNotice} onJoined={onJoined} onQuickStart={onQuickStart} />
+      ) : !state ? (
+        <main className="screen">
+          <p className="waiting">Loading room…</p>
+        </main>
+      ) : state.room.status === 'lobby' ? (
+        <Lobby state={state} send={sendAndMaybeLeave} quick={quick} onDismissQuick={dismiss} cue={currentCue} />
+      ) : state.room.status === 'finished' ? (
+        <EndGame state={state} send={sendAndMaybeLeave} />
+      ) : (
+        <Game state={state} send={send} tutorialEnabled={tutorialEnabled} onToggleTutorial={toggleTutorial} cue={currentCue} />
+      )}
     </>
   )
 }
