@@ -55,7 +55,7 @@ export function Game({ state, send, showScores, onToggleScores, tutorialEnabled,
             </button>
           )}
           {tutorialEnabled && onReplayTour && (
-            <button type="button" className="btn btn--secondary" onClick={onReplayTour}>
+            <button type="button" className="btn btn--link game-header__replay" onClick={onReplayTour}>
               Replay tour
             </button>
           )}
