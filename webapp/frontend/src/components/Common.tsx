@@ -1,7 +1,43 @@
 import { useState } from 'react'
 import type { Player } from '../types'
 
-export function PlayerList({ players, youId, waitingOn }: { players: Player[]; youId: string; waitingOn?: (p: Player) => boolean }) {
+export function BotBadge() {
+  return (
+    <span className="tag tag--bot" title="AI companion" data-testid="bot-badge">
+      bot
+    </span>
+  )
+}
+
+export function PlayerName({ player }: { player: Player | undefined }) {
+  if (!player) return null
+  return (
+    <>
+      {player.nickname}
+      {player.isCompanion && <BotBadge />}
+    </>
+  )
+}
+
+export const MAX_PLAYERS = 8
+
+export function AddCompanionButton({ players, onAdd }: { players: Player[]; onAdd: () => void }) {
+  if (players.length >= MAX_PLAYERS) return null
+  return (
+    <button type="button" className="btn btn--secondary btn--block" onClick={onAdd}>
+      Add AI companion
+    </button>
+  )
+}
+
+interface PlayerListProps {
+  players: Player[]
+  youId: string
+  waitingOn?: (p: Player) => boolean
+  onRemoveCompanion?: (playerId: string) => void
+}
+
+export function PlayerList({ players, youId, waitingOn, onRemoveCompanion }: PlayerListProps) {
   return (
     <ul className="player-list">
       {players.map((p) => {
@@ -9,7 +45,7 @@ export function PlayerList({ players, youId, waitingOn }: { players: Player[]; y
         return (
           <li key={p.playerId} className={`player${p.connected ? '' : ' player--offline'}`}>
             <span className="player__name">
-              {p.nickname}
+              <PlayerName player={p} />
               {p.playerId === youId && <span className="muted"> (you)</span>}
               {p.isStoryteller && <span className="tag">storyteller</span>}
             </span>
@@ -19,6 +55,11 @@ export function PlayerList({ players, youId, waitingOn }: { players: Player[]; y
               </span>
             )}
             {!p.connected && <span className="tag tag--offline">offline</span>}
+            {onRemoveCompanion && p.isCompanion && (
+              <button type="button" className="btn btn--secondary btn--small" onClick={() => onRemoveCompanion(p.playerId)} aria-label={`Remove ${p.nickname}`}>
+                Remove
+              </button>
+            )}
           </li>
         )
       })}
@@ -40,7 +81,7 @@ export function Scoreboard({ players, youId, winnerIds = [], targetScore }: { pl
         {sorted.map((p) => (
           <tr key={p.playerId} className={winnerIds.includes(p.playerId) ? 'winner' : ''}>
             <td>
-              {p.nickname}
+              <PlayerName player={p} />
               {p.playerId === youId && <span className="muted"> (you)</span>}
               {winnerIds.includes(p.playerId) && <span className="tag tag--winner">winner</span>}
             </td>

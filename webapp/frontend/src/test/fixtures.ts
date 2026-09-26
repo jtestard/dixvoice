@@ -1,12 +1,18 @@
-import type { GameState, Player, Round } from '../types'
+import type { Clip, GameState, Player, Round } from '../types'
 
-export const clip = (id: string) => ({ clipId: id, clipUrl: `https://cdn.example.com/audio/${id}.mp3` })
+export const clip = (id: string): Clip => ({
+  clipId: id,
+  clipUrl: `https://cdn.example.com/audio/${id}.mp3`,
+  text: `SECRET-TEXT-${id}`,
+  emotion: `SECRET-EMOTION-${id}`,
+  voiceId: `SECRET-VOICE-${id}`,
+})
 
 export const HAND = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].map(clip)
 export const TABLE = ['t1', 't2', 't3', 't4'].map(clip)
 
 export function player(id: string, nickname: string, extra: Partial<Player> = {}): Player {
-  return { playerId: id, nickname, connected: true, score: 0, isStoryteller: false, hasSubmitted: false, hasVoted: false, ...extra }
+  return { playerId: id, nickname, connected: true, score: 0, isStoryteller: false, hasSubmitted: false, hasVoted: false, isCompanion: false, ...extra }
 }
 
 export const PLAYERS: Player[] = [
@@ -15,6 +21,8 @@ export const PLAYERS: Player[] = [
   player('p3', 'Chloé', { score: 7 }),
   player('p4', 'Me', { score: 4 }),
 ]
+
+export const COMPANION = player('p5', 'Robo Ada', { isCompanion: true })
 
 export function lobbyState(players: Player[] = PLAYERS.slice(0, 3)): GameState {
   return {

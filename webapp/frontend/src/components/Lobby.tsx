@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ClientMessage, GameState } from '../types'
-import { PlayerList, StopButton } from './Common'
+import { AddCompanionButton, MAX_PLAYERS, PlayerList, StopButton } from './Common'
 
 interface Props {
   state: GameState
@@ -8,7 +8,7 @@ interface Props {
 }
 
 export const MIN_PLAYERS = 4
-export const MAX_PLAYERS = 8
+export { MAX_PLAYERS }
 
 export function Lobby({ state, send }: Props) {
   const [copied, setCopied] = useState(false)
@@ -39,10 +39,11 @@ export function Lobby({ state, send }: Props) {
       <h2>
         Players ({n}/{MAX_PLAYERS})
       </h2>
-      <PlayerList players={state.players} youId={state.you.playerId} />
-      {!canStart && <p className="muted">Waiting for at least {MIN_PLAYERS} players to start.</p>}
+      <PlayerList players={state.players} youId={state.you.playerId} onRemoveCompanion={(playerId) => send({ type: 'remove_companion', playerId })} />
+      {!canStart && <p className="muted">Waiting for at least {MIN_PLAYERS} players to start. Add AI companions to fill the seats.</p>}
 
       <div className="actions">
+        <AddCompanionButton players={state.players} onAdd={() => send({ type: 'add_companion' })} />
         <button type="button" className="btn btn--primary btn--block" disabled={!canStart} onClick={() => send({ type: 'start_game' })}>
           Start game
         </button>

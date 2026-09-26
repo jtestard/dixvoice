@@ -22,6 +22,15 @@ export interface Game {
 const RECONNECT_BASE_MS = 1000
 const RECONNECT_MAX_MS = 10000
 
+const ROOM_CLOSED_TEXT: Record<string, string> = {
+  stopped: 'The room was stopped.',
+  removed: 'You were removed from the room.',
+}
+
+export function roomClosedText(reason: string): string {
+  return ROOM_CLOSED_TEXT[reason] ?? `Room closed (${reason}).`
+}
+
 export function useGame(): Game {
   const [token, setTokenState] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY))
   const [state, setState] = useState<GameState | null>(null)
@@ -71,10 +80,7 @@ export function useGame(): Game {
           closed = true
           ws.close()
           setToken(null)
-          setNotice({
-            kind: 'info',
-            text: msg.reason === 'stopped' ? 'The room was stopped.' : `Room closed (${msg.reason}).`,
-          })
+          setNotice({ kind: 'info', text: roomClosedText(msg.reason) })
         }
       }
       ws.onclose = (ev) => {

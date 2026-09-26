@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ClientMessage, GameState, Player, Round } from '../types'
 import { ClipCard } from './ClipCard'
-import { PlayerList, Scoreboard, StopButton } from './Common'
+import { AddCompanionButton, PlayerList, PlayerName, Scoreboard, StopButton } from './Common'
 
 interface Props {
   state: GameState
@@ -47,7 +47,7 @@ export function Game({ state, send }: Props) {
 
       {round && (
         <p className="storyteller-line">
-          Storyteller: <strong>{isStoryteller ? 'you' : storyteller?.nickname}</strong>
+          Storyteller: <strong>{isStoryteller ? 'you' : <PlayerName player={storyteller} />}</strong>
         </p>
       )}
 
@@ -126,7 +126,9 @@ function WaitForClue({ state }: { state: GameState }) {
   const storyteller = state.players.find((p) => p.isStoryteller)
   return (
     <>
-      <p className="waiting">Waiting for {storyteller?.nickname ?? 'the storyteller'} to pick a clip and write a clue…</p>
+      <p className="waiting">
+        Waiting for {storyteller ? <PlayerName player={storyteller} /> : 'the storyteller'} to pick a clip and write a clue…
+      </p>
       <Hand state={state} selected={null} />
     </>
   )
@@ -211,7 +213,10 @@ function RevealPhase({ state, send }: Props) {
   const round = state.round!
   const reveal = round.reveal
   const byId = new Map(state.players.map((p) => [p.playerId, p]))
-  const name = (id: string) => byId.get(id)?.nickname ?? id
+  const name = (id: string) => {
+    const p = byId.get(id)
+    return p ? <PlayerName key={id} player={p} /> : id
+  }
   const clipFor = (clipId: string) => round.table.find((c) => c.clipId === clipId)
   return (
     <>
@@ -221,7 +226,7 @@ function RevealPhase({ state, send }: Props) {
           <section aria-label="Results">
             <div className="hand">
               {reveal.results.map((r, i) => {
-                const clip = clipFor(r.clipId) ?? { clipId: r.clipId, clipUrl: '' }
+                const clip = clipFor(r.clipId) ?? { clipId: r.clipId, clipUrl: '', text: '', emotion: '', voiceId: '' }
                 return (
                   <ClipCard
                     key={r.clipId}
@@ -237,7 +242,14 @@ function RevealPhase({ state, send }: Props) {
                       </div>
                       <div>
                         <span className="muted">Votes: </span>
-                        {r.voterIds.length ? r.voterIds.map(name).join(', ') : 'none'}
+                        {r.voterIds.length
+                          ? r.voterIds.map((id, i) => (
+                              <span key={id}>
+                                {i > 0 && ', '}
+                                {name(id)}
+                              </span>
+                            ))
+                          : 'none'}
                       </div>
                     </div>
                   </ClipCard>
@@ -249,7 +261,9 @@ function RevealPhase({ state, send }: Props) {
           <ul className="points">
             {state.players.map((p) => (
               <li key={p.playerId}>
-                <span>{p.nickname}</span>
+                <span>
+                  <PlayerName player={p} />
+                </span>
                 <span className="num">
                   +{reveal.points[p.playerId] ?? 0} <span className="muted">({p.score})</span>
                 </span>
@@ -276,7 +290,10 @@ export function EndGame({ state, send }: Props) {
         {won ? 'You win!' : winners.length ? `${winners.join(' and ')} ${winners.length > 1 ? 'win' : 'wins'}!` : 'No winner.'}
       </p>
       <Scoreboard players={state.players} youId={you} winnerIds={state.winnerIds} targetScore={state.room.targetScore} />
+      <h2>Players</h2>
+      <PlayerList players={state.players} youId={you} onRemoveCompanion={(playerId) => send({ type: 'remove_companion', playerId })} />
       <div className="actions">
+        <AddCompanionButton players={state.players} onAdd={() => send({ type: 'add_companion' })} />
         <button type="button" className="btn btn--primary btn--block" disabled={state.players.length < 4} onClick={() => send({ type: 'start_game' })}>
           New game
         </button>
