@@ -156,7 +156,7 @@ of appearance:
 | `start` | Lobby | Anyone can press Start once there are at least 4 players. |
 | `header` | Game | The round number and phase, the Help toggle for these tips, and the Scores button. |
 | `role` | Game | This strip says who you are this round and what that means for you. It updates as the round moves on. |
-| `hand` | Storyteller phase, and submit for players | Your 6 clips are your cards. Tap one to listen. Nobody else hears your hand. Clips are 2 seconds; you get a fresh hand every round. |
+| `hand` | Storyteller phase, and submit for players | Your clips are your cards: 5 dealt, plus a slot where you can create your own sound. Tap one to listen. Nobody else hears your hand. Clips are 2 seconds; you get a fresh hand every round. |
 | `clue` | Submit onwards | Storyteller: Your clue, "a door in the rain". Every player now picks the clip from their hand that best fits it. Player: "a door in the rain" is Ana's clue for one of their clips. Everyone matches it with a clip of their own. |
 | `table` | Submit | The clips submitted so far, face down. Below, the player list shows who's done and who we're waiting for. |
 | `vote` | Vote | All submitted clips, shuffled anonymously. Find Ana's; you can't vote for your own. (Storyteller: The players are now trying to find yours among the others'.) |

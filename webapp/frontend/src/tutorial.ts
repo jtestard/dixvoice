@@ -214,7 +214,7 @@ function tourStepFor(section: TourSection, state: GameState | null, screen: Tuto
     case 'hand':
       return step(
         'YOUR HAND',
-        `Your 6 clips are your cards. Tap one to listen. Nobody else hears your hand. Clips are ${CLIP_LEN}; you get a fresh hand every round.`,
+        `Your clips are your cards: 5 dealt, plus a slot where you can create your own sound. Tap one to listen. Nobody else hears your hand. Clips are ${CLIP_LEN}; you get a fresh hand every round.`,
       )
     case 'clue': {
       const clue = round?.clue ? `“${round.clue}”` : 'the clue'

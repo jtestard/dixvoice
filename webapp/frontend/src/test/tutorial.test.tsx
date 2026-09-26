@@ -165,7 +165,7 @@ describe('tour', () => {
     expect(tourStep(playingState('p4', { phase: 'storyteller' }), 'game', ui, new Set(['header', 'role']))).toEqual({
       section: 'hand',
       label: 'YOUR HAND',
-      body: 'Your 6 clips are your cards. Tap one to listen. Nobody else hears your hand. Clips are 2 seconds; you get a fresh hand every round.',
+      body: 'Your clips are your cards: 5 dealt, plus a slot where you can create your own sound. Tap one to listen. Nobody else hears your hand. Clips are 2 seconds; you get a fresh hand every round.',
     })
     expect(tourStep(finishedState(), 'endGame', ui, none)?.body).toBe('First to 10 points wins the game ("dix" means ten in French). The session is complete.')
   })
