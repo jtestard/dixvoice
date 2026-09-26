@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ClientMessage, GameState, Player, Round } from '../types'
-import { ClipCard } from './ClipCard'
+import { ClipCard, FaceDownCard } from './ClipCard'
 import { PlayerList, Scoreboard, StopButton } from './Common'
 
 interface Props {
@@ -25,12 +25,13 @@ export function Game({ state, send }: Props) {
   return (
     <main className="screen screen--game">
       <header className="game-header">
-        <div>
-          <span className="muted">Room </span>
-          <strong className="mono">{state.room.code}</strong>
+        <div className="game-header__meta">
+          <span className="label">
+            Room <strong className="game-header__code">{state.room.code}</strong>
+          </span>
           {round && (
-            <span className="muted">
-              {' · '}Round {round.number} · {PHASE_TITLE[round.phase]}
+            <span className="label">
+              Round {round.number} · {PHASE_TITLE[round.phase]}
             </span>
           )}
         </div>
@@ -68,7 +69,7 @@ export function Game({ state, send }: Props) {
 function Clue({ round }: { round: Round }) {
   return (
     <blockquote className="clue">
-      <span className="muted">Clue</span>
+      <span className="clue__label">Clue</span>
       <div className="clue__text">{round.clue ?? '…'}</div>
     </blockquote>
   )
@@ -78,17 +79,31 @@ function Hand({ state, selected, onSelect, actionLabel, disabled }: { state: Gam
   return (
     <section aria-label="Your hand">
       <h2>Your hand</h2>
-      <div className="hand">
+      <div className="hand hand--dealt">
         {state.you.hand.map((clip, i) => (
           <ClipCard
             key={clip.clipId}
             clip={clip}
-            label={`Clip ${i + 1}`}
+            index={i}
             selected={selected === clip.clipId}
             onSelect={onSelect}
             actionLabel={actionLabel}
             disabled={disabled}
           />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function FaceDownTable({ state }: { state: GameState }) {
+  const count = 1 + state.players.filter((p) => !p.isStoryteller && p.hasSubmitted).length
+  return (
+    <section className="table-preview" aria-label={`${count} ${count > 1 ? 'clips' : 'clip'} on the table`}>
+      <h2>On the table</h2>
+      <div className="hand hand--facedown">
+        {Array.from({ length: count }, (_, i) => (
+          <FaceDownCard key={i} />
         ))}
       </div>
     </section>
@@ -144,6 +159,7 @@ function SubmitPhase({ state, send }: Props) {
       ) : (
         <p>Pick the clip from your hand that best matches the clue.</p>
       )}
+      <FaceDownTable state={state} />
       <Hand
         state={state}
         selected={submitted}
@@ -163,6 +179,7 @@ function WaitForSubmissions({ state }: { state: GameState }) {
     <>
       <Clue round={round} />
       <p className="waiting">Waiting for the other players to submit a clip…</p>
+      <FaceDownTable state={state} />
       <PlayerList players={state.players.filter((p) => !p.isStoryteller)} youId={state.you.playerId} waitingOn={waitingOn} />
     </>
   )
@@ -184,14 +201,14 @@ function VotePhase({ state, send, isStoryteller }: Props & { isStoryteller: bool
         <p>Which clip is the storyteller&apos;s? You cannot vote for your own.</p>
       )}
       <section aria-label="Table">
-        <div className="hand">
+        <div className="hand hand--flip">
           {round.table.map((clip, i) => {
             const own = clip.clipId === round.yourSubmission
             return (
               <ClipCard
                 key={clip.clipId}
                 clip={clip}
-                label={`Clip ${i + 1}`}
+                index={i}
                 selected={voted === clip.clipId}
                 badge={own ? 'yours' : undefined}
                 onSelect={canVote && !own ? (clipId) => send({ type: 'vote', clipId }) : undefined}
@@ -219,24 +236,25 @@ function RevealPhase({ state, send }: Props) {
       {reveal && (
         <>
           <section aria-label="Results">
-            <div className="hand">
+            <div className="hand hand--flip">
               {reveal.results.map((r, i) => {
                 const clip = clipFor(r.clipId) ?? { clipId: r.clipId, clipUrl: '' }
                 return (
                   <ClipCard
                     key={r.clipId}
                     clip={clip}
-                    label={`Clip ${i + 1}`}
+                    index={i}
                     selected={r.isStoryteller}
                     badge={r.isStoryteller ? 'storyteller' : undefined}
+                    badgeKind="accent"
                   >
                     <div className="reveal-info">
                       <div>
-                        <span className="muted">Owner: </span>
+                        <span className="label">Owner </span>
                         <strong>{name(r.ownerId)}</strong>
                       </div>
                       <div>
-                        <span className="muted">Votes: </span>
+                        <span className="label">Votes </span>
                         {r.voterIds.length ? r.voterIds.map(name).join(', ') : 'none'}
                       </div>
                     </div>
@@ -248,10 +266,10 @@ function RevealPhase({ state, send }: Props) {
           <h2>Points this round</h2>
           <ul className="points">
             {state.players.map((p) => (
-              <li key={p.playerId}>
+              <li key={p.playerId} className={p.playerId === state.you.playerId ? 'you' : undefined}>
                 <span>{p.nickname}</span>
                 <span className="num">
-                  +{reveal.points[p.playerId] ?? 0} <span className="muted">({p.score})</span>
+                  <span className="points__won">+{reveal.points[p.playerId] ?? 0}</span> <span className="muted">({p.score})</span>
                 </span>
               </li>
             ))}

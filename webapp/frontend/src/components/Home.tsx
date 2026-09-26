@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ApiError, createRoom, joinRoom } from '../api'
 import type { Notice } from '../useGame'
+import { NoticeLabel } from './Common'
 
 interface Props {
   notice: Notice | null
@@ -39,12 +40,18 @@ export function Home({ notice, onDismissNotice, onJoined }: Props) {
 
   return (
     <main className="screen screen--home">
-      <h1 className="title">Dixvoice</h1>
-      <p className="muted">Dixit, with sounds instead of cards.</p>
+      <h1 className="wordmark">
+        <img className="wordmark__mark" src={`${import.meta.env.BASE_URL}cassette.svg`} alt="" width={92} height={64} />
+        <span>
+          <span className="wordmark__dix">dix</span>voice
+        </span>
+      </h1>
+      <p className="tagline">Dixit, with sounds instead of cards.</p>
 
       {notice && (
         <div className={`notice notice--${notice.kind}`} role="status">
-          {notice.text}
+          <NoticeLabel kind={notice.kind} />
+          <span>{notice.text}</span>
         </div>
       )}
 
@@ -96,7 +103,8 @@ export function Home({ notice, onDismissNotice, onJoined }: Props) {
 
       {error && (
         <div className="notice notice--error" role="alert">
-          {error}
+          <NoticeLabel kind="error" />
+          <span>{error}</span>
         </div>
       )}
     </main>

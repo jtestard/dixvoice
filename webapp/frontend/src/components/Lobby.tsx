@@ -29,8 +29,14 @@ export function Lobby({ state, send }: Props) {
     <main className="screen">
       <h1 className="title">Lobby</h1>
       <section className="room-code" aria-label="Room code">
-        <span className="muted">Room code</span>
-        <div className="room-code__value">{state.room.code}</div>
+        <span className="label">Room code</span>
+        <div className="room-code__value" data-testid="room-code">
+          {state.room.code.split('').map((ch, i) => (
+            <span key={i} className="room-code__tile">
+              {ch}
+            </span>
+          ))}
+        </div>
         <button type="button" className="btn btn--secondary" onClick={copy}>
           {copied ? 'Copied!' : 'Copy code'}
         </button>

@@ -9,7 +9,7 @@ describe('Lobby', () => {
   it('disables Start below 4 players and enables it at 4', async () => {
     const send = vi.fn()
     const { rerender } = render(<Lobby state={lobbyState(PLAYERS.slice(0, 3))} send={send} />)
-    expect(screen.getByText('KXQP')).toBeInTheDocument()
+    expect(screen.getByTestId('room-code')).toHaveTextContent('KXQP')
     expect(screen.getByRole('button', { name: 'Start game' })).toBeDisabled()
     expect(screen.getByText(/at least 4 players/)).toBeInTheDocument()
 
