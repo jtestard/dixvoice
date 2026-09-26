@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Dixvoice audio library</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="header">
+    <h1>Dixvoice audio library</h1>
+    <p class="count" id="count" aria-live="polite">Loading…</p>
+  </header>
+
+  <form class="filters" id="filters" autocomplete="off">
+    <label class="filter grow">
+      <span>Search text</span>
+      <input type="search" id="q" name="q" placeholder="e.g. gap">
+    </label>
+    <label class="filter">
+      <span>Emotion</span>
+      <select id="emotion" name="emotion"><option value="">All</option></select>
+    </label>
+    <label class="filter">
+      <span>Voice</span>
+      <select id="voice" name="voice"><option value="">All</option></select>
+    </label>
+    <label class="filter">
+      <span>Sort</span>
+      <select id="sort" name="sort">
+        <option value="">Manifest order</option>
+        <option value="text">Text A→Z</option>
+        <option value="-text">Text Z→A</option>
+        <option value="emotion">Emotion A→Z</option>
+        <option value="-emotion">Emotion Z→A</option>
+        <option value="duration">Duration ↑</option>
+        <option value="-duration">Duration ↓</option>
+      </select>
+    </label>
+    <label class="toggle"><input type="checkbox" id="enabled" name="enabled"> Only enabled</label>
+    <label class="toggle"><input type="checkbox" id="deal" name="deal"> Only deal</label>
+    <button type="button" id="reset" class="btn">Reset</button>
+  </form>
+
+  <main>
+    <table class="clips" id="clips">
+      <thead>
+        <tr>
+          <th class="col-play"><span class="sr-only">Play</span></th>
+          <th class="col-text"><button type="button" class="sort" data-sort="text">Text</button></th>
+          <th class="col-emotion"><button type="button" class="sort" data-sort="emotion">Emotion</button></th>
+          <th class="col-voice">Voice</th>
+          <th class="col-duration"><button type="button" class="sort" data-sort="duration">Duration</button></th>
+          <th class="col-flags">Flags</th>
+          <th class="col-copy">Copy</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="empty" id="empty" hidden>No clips match the current filters.</p>
+    <p class="error" id="error" hidden></p>
+  </main>
+
+  <audio id="player" preload="none"></audio>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
