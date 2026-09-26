@@ -250,6 +250,8 @@ type clientMessage struct {
 	ClipID   string `json:"clipId"`
 	Clue     string `json:"clue"`
 	PlayerID string `json:"playerId"`
+	Text     string `json:"text"`
+	Emotion  string `json:"emotion"`
 }
 
 type wsError struct {
@@ -414,6 +416,8 @@ func (c *client) eject(reason string) {
 func (s *Server) handleMessage(ctx context.Context, seat game.Seat, c *client, msg clientMessage) bool {
 	room, pid := seat.Room, seat.PlayerID
 	var err error
+	// after runs once the resulting state has been broadcast.
+	var after func()
 	switch msg.Type {
 	case "start_game":
 		var pool []game.Clip
@@ -465,6 +469,18 @@ func (s *Server) handleMessage(ctx context.Context, seat game.Seat, c *client, m
 		err = room.SubmitClip(pid, msg.ClipID)
 	case "vote":
 		err = room.Vote(pid, msg.ClipID)
+	case "generate_sound":
+		var text, emotion string
+		text, emotion, err = game.ValidateSound(msg.Text, msg.Emotion)
+		if err == nil {
+			var ticket int
+			ticket, err = room.BeginCustom(pid)
+			if err == nil {
+				// Started after the "generating" state is sent, so that the
+				// result's state can never arrive first.
+				after = func() { go s.generate(room, pid, ticket, audio.Request{Text: text, Emotion: emotion}) }
+			}
+		}
 	case "next_round":
 		var pool []game.Clip
 		var needsPool bool
@@ -489,6 +505,9 @@ func (s *Server) handleMessage(ctx context.Context, seat game.Seat, c *client, m
 		return false
 	}
 	s.broadcast(room)
+	if after != nil {
+		after()
+	}
 	return false
 }
 
@@ -504,4 +523,37 @@ func (s *Server) addCompanion(ctx context.Context, room *game.Room) error {
 		return &game.Error{Code: game.CodeCompanionUnavailable, Message: "AI companions are unavailable right now"}
 	}
 	return nil
+}
+
+// generate asks the audio service for the player's sound and puts it in their
+// custom slot. It runs in the background: generation takes seconds and never
+// blocks the round (README > Custom sound).
+func (s *Server) generate(room *game.Room, pid string, ticket int, req audio.Request) {
+	a, err := s.audio.Create(context.Background(), req)
+	var clip *game.Clip
+	if err == nil {
+		clip = &game.Clip{ID: a.ID, URL: a.ClipURL, Text: a.Text, Emotion: a.Emotion, VoiceID: a.VoiceID}
+	} else {
+		s.log.Warn("generate sound failed", "code", room.Code, "player", pid, "err", err)
+	}
+	if !room.CompleteCustom(pid, ticket, clip) {
+		return // the round moved on: the result is dropped
+	}
+	if err != nil {
+		if c := s.clients(room)[pid]; c != nil {
+			_ = c.send(wsError{Type: "error", Code: game.CodeGenerationFailed, Message: generationMessage(err)})
+		}
+	}
+	s.broadcast(room)
+}
+
+// generationMessage explains a failed generation to the player: the audio
+// service's own message when it refused the input (e.g. digits in the text),
+// a generic one otherwise.
+func generationMessage(err error) string {
+	var se *audio.ServiceError
+	if errors.As(err, &se) && se.Status == http.StatusBadRequest && se.Message != "" {
+		return se.Message
+	}
+	return "the sound could not be generated, try again"
 }

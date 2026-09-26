@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { EndGame, Game } from '../components/Game'
 import { Lobby } from '../components/Lobby'
-import { HAND, PLAYERS, REVEAL_ROUND, TABLE, finishedState, lobbyState, player, playingState } from './fixtures'
+import { HAND, PLAYERS, REVEAL_ROUND, TABLE, clip, finishedState, lobbyState, player, playingState } from './fixtures'
 
 describe('Lobby', () => {
   it('disables Start below 4 players and enables it at 4', async () => {
@@ -171,5 +171,71 @@ describe('Scoreboard and end of game', () => {
     const state = lobbyState([...PLAYERS.slice(0, 3), player('p9', 'Zed', { connected: false })])
     render(<Lobby state={state} send={vi.fn()} />)
     expect(screen.getByText('offline')).toBeInTheDocument()
+  })
+})
+
+describe('Custom sound', () => {
+  const withSlot = (s: ReturnType<typeof playingState>, customSlot: 'empty' | 'generating' | 'ready' | 'failed', hand = HAND.slice(0, 5)) => ({
+    ...s,
+    you: { ...s.you, hand, customSlot },
+  })
+
+  it('lets a player create a sound from the empty 6th slot', async () => {
+    const send = vi.fn()
+    render(<Game state={withSlot(playingState('p4', { phase: 'storyteller' }), 'empty')} send={send} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Create a sound' }))
+    const form = screen.getByRole('form', { name: 'Create a sound' })
+    const generate = within(form).getByRole('button', { name: 'Generate' })
+    expect(generate).toBeDisabled()
+    await userEvent.type(within(form).getByLabelText('What is said'), 'Who ate my sandwich?')
+    await userEvent.type(within(form).getByLabelText(/How it is said/), 'angry')
+    await userEvent.click(generate)
+    expect(send).toHaveBeenCalledWith({ type: 'generate_sound', text: 'Who ate my sandwich?', emotion: 'angry' })
+    expect(screen.queryByRole('form', { name: 'Create a sound' })).not.toBeInTheDocument()
+  })
+
+  it('asks for numbers in words', async () => {
+    render(<Game state={withSlot(playingState('p1', { phase: 'storyteller' }), 'empty')} send={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Create a sound' }))
+    await userEvent.type(screen.getByLabelText('What is said'), 'I am 12')
+    await userEvent.type(screen.getByLabelText(/How it is said/), 'sad')
+    expect(screen.getByRole('alert')).toHaveTextContent(/numbers in words/)
+    expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled()
+  })
+
+  it('shows the generating and failed states, and lets a failed sound be retried', async () => {
+    const { rerender } = render(<Game state={withSlot(playingState('p4', { phase: 'submit', clue: 'rain' }), 'generating')} send={vi.fn()} />)
+    expect(screen.getByRole('status')).toHaveTextContent(/Generating your sound/)
+    expect(screen.queryByRole('button', { name: 'Create a sound' })).not.toBeInTheDocument()
+
+    const send = vi.fn()
+    rerender(<Game state={withSlot(playingState('p4', { phase: 'submit', clue: 'rain' }), 'failed')} send={send} />)
+    await userEvent.click(screen.getByRole('button', { name: /Try again/ }))
+    await userEvent.type(screen.getByLabelText('What is said'), 'Hello')
+    await userEvent.type(screen.getByLabelText(/How it is said/), 'calm')
+    await userEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    expect(send).toHaveBeenCalledWith({ type: 'generate_sound', text: 'Hello', emotion: 'calm' })
+  })
+
+  it('shows the ready sound in the hand, marked as yours, and lets the storyteller play it', async () => {
+    const send = vi.fn()
+    const mine = { ...clip('g1'), custom: true }
+    render(<Game state={withSlot(playingState('p1', { phase: 'storyteller' }), 'ready', [...HAND.slice(0, 5), mine])} send={send} />)
+    expect(screen.getAllByRole('button', { name: /^Play Clip/ })).toHaveLength(6)
+    expect(within(screen.getByTestId('clip-g1')).getByText('your sound')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create a sound' })).not.toBeInTheDocument()
+    await userEvent.click(within(screen.getByTestId('clip-g1')).getByRole('button', { name: 'Pick' }))
+    await userEvent.type(screen.getByLabelText('Your clue'), 'hunger')
+    await userEvent.click(screen.getByRole('button', { name: 'Send clue' }))
+    expect(send).toHaveBeenCalledWith({ type: 'submit_clue', clipId: 'g1', clue: 'hunger' })
+  })
+
+  it('hides the slot once a clip is on the table, and when the backend has no custom slot', () => {
+    const { rerender } = render(
+      <Game state={withSlot(playingState('p4', { phase: 'submit', clue: 'rain', yourSubmission: 'h2' }), 'empty')} send={vi.fn()} />,
+    )
+    expect(screen.queryByRole('button', { name: 'Create a sound' })).not.toBeInTheDocument()
+    rerender(<Game state={playingState('p4', { phase: 'storyteller' })} send={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'Create a sound' })).not.toBeInTheDocument()
   })
 })

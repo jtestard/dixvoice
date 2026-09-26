@@ -1,7 +1,8 @@
 // Package mockaudio is a stand-in for the audio generator microservice for
 // local development and tests. It serves GET /audio/list and GET /audio/{id}
 // following spec/audio-response.schema.json, with fixture sounds whose
-// clipUrl points at a few tone mp3 files it serves itself under /clips/.
+// clipUrl points at a few tone mp3 files it serves itself under /clips/, and
+// POST /audio, which "generates" a sound by picking one of those tones.
 package mockaudio
 
 import (
@@ -12,6 +13,9 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
+	"unicode/utf8"
 
 	"github.com/jtestard/dixvoice/webapp/backend/internal/audio"
 )
@@ -106,6 +110,61 @@ type Service struct {
 	// derived from each request's Host header.
 	PublicURL string
 	Count     int
+	// GenerateDelay is how long POST /audio takes, like a real generation.
+	GenerateDelay time.Duration
+	// GenerateStatus, if set, is the error status POST /audio answers (tests).
+	GenerateStatus int
+
+	mu        sync.Mutex
+	generated []audio.Response
+	rng       *rand.Rand
+}
+
+// all returns the fixtures followed by the generated sounds.
+func (s *Service) all(r *http.Request) []audio.Response {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append(Fixtures(s.Count, s.base(r)), s.generated...)
+}
+
+// generate handles POST /audio (spec/audio-service.openapi.json).
+func (s *Service) generate(w http.ResponseWriter, r *http.Request) {
+	var req audio.Request
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request", "message": "body must be an AudioRequest"})
+		return
+	}
+	if n := utf8.RuneCountInString(req.Text); n < 1 || n > 100 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request", "message": "text must be 1 to 100 characters"})
+		return
+	}
+	if n := utf8.RuneCountInString(req.Emotion); n < 1 || n > 30 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_request", "message": "emotion must be 1 to 30 characters"})
+		return
+	}
+	if s.GenerateDelay > 0 {
+		time.Sleep(s.GenerateDelay)
+	}
+	if s.GenerateStatus != 0 {
+		writeJSON(w, s.GenerateStatus, map[string]string{"error": "provider_error", "message": "the mock was told to fail"})
+		return
+	}
+	base := s.base(r)
+	s.mu.Lock()
+	if s.rng == nil {
+		s.rng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+	}
+	n := len(s.generated)
+	a := audio.Response{
+		ID:      uuidV4(s.rng),
+		Text:    req.Text,
+		Emotion: req.Emotion,
+		VoiceID: voices[n%len(voices)],
+		ClipURL: fmt.Sprintf("%s/clips/tone%d.mp3", strings.TrimRight(base, "/"), n%clipCount),
+	}
+	s.generated = append(s.generated, a)
+	s.mu.Unlock()
+	writeJSON(w, http.StatusCreated, a)
 }
 
 func (s *Service) base(r *http.Request) string {
@@ -132,11 +191,11 @@ func (s *Service) Handler() http.Handler {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /audio/list", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, Fixtures(s.Count, s.base(r)))
+		writeJSON(w, http.StatusOK, s.all(r))
 	})
 	mux.HandleFunc("GET /audio/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		for _, f := range Fixtures(s.Count, s.base(r)) {
+		for _, f := range s.all(r) {
 			if f.ID == id {
 				writeJSON(w, http.StatusOK, f)
 				return
@@ -144,9 +203,7 @@ func (s *Service) Handler() http.Handler {
 		}
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found", "message": "unknown audio id"})
 	})
-	mux.HandleFunc("POST /audio", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "not_implemented", "message": "the mock does not generate sounds"})
-	})
+	mux.HandleFunc("POST /audio", s.generate)
 	sub, err := fs.Sub(clips, "clips")
 	if err != nil {
 		panic(err)

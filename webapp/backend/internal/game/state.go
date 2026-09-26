@@ -19,6 +19,8 @@ type RoomState struct {
 type YouState struct {
 	PlayerID string `json:"playerId"`
 	Hand     []Clip `json:"hand"`
+	// CustomSlot is the state of your custom slot (only you see it).
+	CustomSlot CustomState `json:"customSlot"`
 }
 
 type PlayerState struct {
@@ -59,7 +61,7 @@ func (r *Room) Snapshot(playerID string) State {
 	st := State{
 		Type:      "state",
 		Room:      RoomState{Code: r.Code, Status: r.Status, TargetScore: TargetScore},
-		You:       YouState{PlayerID: playerID, Hand: []Clip{}},
+		You:       YouState{PlayerID: playerID, Hand: []Clip{}, CustomSlot: CustomEmpty},
 		Players:   make([]PlayerState, 0, len(r.Players)),
 		WinnerIDs: []string{},
 	}
@@ -69,6 +71,9 @@ func (r *Room) Snapshot(playerID string) State {
 	me := r.player(playerID)
 	if me != nil && r.Status == StatusPlaying {
 		st.You.Hand = append(st.You.Hand, me.Hand...)
+		if me.Custom != "" {
+			st.You.CustomSlot = me.Custom
+		}
 	}
 	storyteller := ""
 	if r.Round != nil {

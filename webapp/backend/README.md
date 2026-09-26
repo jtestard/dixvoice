@@ -1,13 +1,15 @@
 # Dixvoice backend
 
 Go server implementing the rooms, game rules and protocol described in the root `README.md` (Web App > Back-End).
-All state is in memory. The first version deals every clip from the audio service's `GET /audio/list`.
+All state is in memory. Hands are dealt from the audio service's `GET /audio/list`; custom sounds are generated with
+its `POST /audio`, in the background.
 
 ## Layout
 
 - `cmd/server`: the backend binary.
 - `cmd/mockaudio`: mock audio generator microservice for local development and tests (300 fixture sounds, 5 tone
-  mp3 files served under `/clips/`).
+  mp3 files served under `/clips/`; `POST /audio` "generates" a sound by picking a tone, after `-generate-delay`,
+  800 ms by default).
 - `internal/game`: rooms, players, phases, scoring and per-player state snapshots (no I/O).
 - `internal/server`: HTTP endpoints, CORS, WebSocket protocol.
 - `internal/audio`: client of the audio service; `internal/mockaudio`: the mock as a library.

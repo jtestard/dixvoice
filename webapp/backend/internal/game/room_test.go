@@ -3,6 +3,7 @@ package game
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -97,8 +98,8 @@ func TestRoomLockedAfterStart(t *testing.T) {
 func TestStartNeedsEnoughSounds(t *testing.T) {
 	r := NewRoom("TEST")
 	mustJoin(t, r, 4)
-	wantCode(t, r.Start(pool(23)), CodeNotEnoughSounds)
-	if err := r.Start(pool(24)); err != nil {
+	wantCode(t, r.Start(pool(4*DealtSize-1)), CodeNotEnoughSounds)
+	if err := r.Start(pool(4 * DealtSize)); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -262,7 +263,7 @@ func TestPhaseOrderAndValidation(t *testing.T) {
 		t.Fatalf("storyteller did not rotate in join order: %s after %s", r.Round.StorytellerID, prevST)
 	}
 	for _, p := range r.Players {
-		if p.Submission != "" || p.Vote != "" || len(p.Hand) != HandSize {
+		if p.Submission != "" || p.Vote != "" || len(p.Hand) != DealtSize || p.Custom != CustomEmpty {
 			t.Fatal("round state not reset")
 		}
 	}
@@ -295,7 +296,7 @@ func TestUsedSoundsNeverRedealt(t *testing.T) {
 	seen := map[string]int{}
 	record := func() {
 		for _, pl := range r.Players {
-			if len(pl.Hand) != HandSize {
+			if len(pl.Hand) != DealtSize {
 				t.Fatalf("hand size %d", len(pl.Hand))
 			}
 			for _, c := range pl.Hand {
@@ -389,7 +390,7 @@ func TestGameEndsWhenPoolExhausted(t *testing.T) {
 	r := NewRoom("TEST")
 	r.SeedRNG(1)
 	mustJoin(t, r, 4)
-	p := pool(30) // one round of 24, then 6 left: not enough
+	p := pool(30) // one round of 20, then 10 left: not enough
 	if err := r.Start(p); err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +417,7 @@ func TestSnapshotVisibility(t *testing.T) {
 		if s.Type != "state" || s.Room.Code != "TEST" || s.Room.Status != StatusPlaying || s.Room.TargetScore != TargetScore {
 			t.Fatalf("bad room state %+v", s.Room)
 		}
-		if s.You.PlayerID != p.ID || len(s.You.Hand) != HandSize {
+		if s.You.PlayerID != p.ID || len(s.You.Hand) != DealtSize || s.You.CustomSlot != CustomEmpty {
 			t.Fatalf("bad you state %+v", s.You)
 		}
 		for i, c := range s.You.Hand {
@@ -623,4 +624,148 @@ func indexOf(r *Room, id string) int {
 		}
 	}
 	return -1
+}
+
+func TestCustomSound(t *testing.T) {
+	r, _ := startedRoom(t, 4)
+	st := storyteller(r)
+	oth := others(r)
+
+	// The storyteller creates a sound before giving the clue.
+	ticket, err := r.BeginCustom(st.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := r.Snapshot(st.ID); s.You.CustomSlot != CustomGenerating || len(s.You.Hand) != DealtSize {
+		t.Fatalf("generating: %+v", s.You)
+	}
+	_, err = r.BeginCustom(st.ID)
+	wantCode(t, err, CodeCustomSlotBusy)
+
+	clip := Clip{ID: "gen1", URL: "http://cdn/gen1.mp3", Text: "Trop tard !", Emotion: "angry", VoiceID: "25AzBFyp6svYnJsj"}
+	if !r.CompleteCustom(st.ID, ticket, &clip) {
+		t.Fatal("result dropped")
+	}
+	if r.CompleteCustom(st.ID, ticket, &clip) {
+		t.Fatal("a result must only apply once")
+	}
+	s := r.Snapshot(st.ID)
+	if s.You.CustomSlot != CustomReady || len(s.You.Hand) != HandSize {
+		t.Fatalf("ready: %+v", s.You)
+	}
+	if last := s.You.Hand[HandSize-1]; last.ID != "gen1" || !last.Custom {
+		t.Fatalf("custom clip not marked in its owner's hand: %+v", last)
+	}
+	if !r.Used["gen1"] {
+		t.Fatal("the custom clip must join the room's used sounds")
+	}
+	_, err = r.BeginCustom(st.ID)
+	wantCode(t, err, CodeCustomSlotBusy)
+	// Nobody else sees it.
+	for _, p := range oth {
+		os := r.Snapshot(p.ID)
+		if os.You.CustomSlot != CustomEmpty {
+			t.Fatal("custom slot state leaked to another player")
+		}
+		for _, c := range os.You.Hand {
+			if c.ID == "gen1" || c.Custom {
+				t.Fatal("custom clip leaked to another player")
+			}
+		}
+	}
+
+	// The storyteller plays it; on the table it looks like any other clip.
+	if err := r.SubmitClue(st.ID, "gen1", "clue"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.BeginCustom(st.ID)
+	wantCode(t, err, CodeAlreadySubmitted) // the storyteller's clip is chosen
+	for _, p := range oth {
+		if err := r.SubmitClip(p.ID, p.Hand[0].ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	found := false
+	for _, c := range r.Snapshot(oth[0].ID).Round.Table {
+		if c.Custom {
+			t.Fatal("the table must not tell a custom clip apart")
+		}
+		found = found || c.ID == "gen1"
+	}
+	if !found {
+		t.Fatal("the custom clip is not on the table")
+	}
+}
+
+func TestCustomSoundRules(t *testing.T) {
+	r, _ := startedRoom(t, 4)
+	st := storyteller(r)
+	oth := others(r)
+
+	// The others may create a sound while the storyteller is still choosing:
+	// generation never blocks the round.
+	ticket, err := r.BeginCustom(oth[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A failed generation can be retried.
+	if !r.CompleteCustom(oth[0].ID, ticket, nil) {
+		t.Fatal("failure dropped")
+	}
+	if r.Snapshot(oth[0].ID).You.CustomSlot != CustomFailed {
+		t.Fatal("slot should be failed")
+	}
+	retry, err := r.BeginCustom(oth[0].ID)
+	if err != nil || retry == ticket {
+		t.Fatalf("retry: %v %d", err, retry)
+	}
+
+	// After putting a clip on the table, no more generation.
+	if err := r.SubmitClue(st.ID, st.Hand[0].ID, "clue"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SubmitClip(oth[1].ID, oth[1].Hand[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.BeginCustom(oth[1].ID)
+	wantCode(t, err, CodeAlreadySubmitted)
+
+	// A result that arrives after the round ended is dropped.
+	for _, p := range oth {
+		if p.Submission == "" {
+			if err := r.SubmitClip(p.ID, p.Hand[0].ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	_, err = r.BeginCustom(oth[2].ID)
+	wantCode(t, err, CodeInvalidPhase) // vote phase
+	for _, p := range oth {
+		if err := r.Vote(p.ID, st.Submission); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := r.NextRound(pool(300)); err != nil {
+		t.Fatal(err)
+	}
+	late := Clip{ID: "late", URL: "u", Text: "t", Emotion: "e", VoiceID: "v"}
+	if r.CompleteCustom(oth[0].ID, retry, &late) {
+		t.Fatal("a result from the previous round must be dropped")
+	}
+	if r.Used["late"] || r.player(oth[0].ID).Custom != CustomEmpty || len(r.player(oth[0].ID).Hand) != DealtSize {
+		t.Fatal("stale result applied")
+	}
+}
+
+func TestValidateSound(t *testing.T) {
+	if text, emotion, err := ValidateSound("  Trop tard !  ", " angry "); err != nil || text != "Trop tard !" || emotion != "angry" {
+		t.Fatalf("valid sound refused: %q %q %v", text, emotion, err)
+	}
+	for _, c := range [][2]string{{"", "angry"}, {"hi", ""}, {strings.Repeat("a", MaxSoundText+1), "angry"}, {"hi", strings.Repeat("é", MaxSoundEmotion+1)}} {
+		_, _, err := ValidateSound(c[0], c[1])
+		wantCode(t, err, CodeInvalidSound)
+	}
+	if _, _, err := ValidateSound(strings.Repeat("é", MaxSoundText), "angry"); err != nil {
+		t.Fatal("limits count characters, not bytes")
+	}
 }

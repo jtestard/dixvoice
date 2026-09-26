@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { roundResult } from '../roundResult'
 import { setSfxEnabled, sfx, sfxEnabled } from '../sfx'
 import type { TutorialCue as Cue } from '../tutorial'
-import type { ClientMessage, CustomSlotState, GameState, Round } from '../types'
-import { CreateSoundForm, CustomSlotCard, type SoundDraft } from './CustomSound'
+import type { ClientMessage, GameState, Round } from '../types'
 import { ClipCard } from './ClipCard'
 import { Avatar, Confetti, PlayerName, Podium, ScoreTrack, Scoreboard, StopButton, playerColor } from './Common'
 import { Table } from './Table'
@@ -69,7 +68,7 @@ export function Game({ state, send, tutorialEnabled, onToggleTutorial, cue = nul
         )}
 
         {round?.phase === 'storyteller' &&
-          (isStoryteller ? <StorytellerPhase state={state} send={send} /> : <WaitForClue state={state} send={send} />)}
+          (isStoryteller ? <StorytellerPhase state={state} send={send} /> : <WaitForClue state={state} />)}
         {round?.phase === 'submit' &&
           (isStoryteller ? <WaitForSubmissions state={state} /> : <SubmitPhase state={state} send={send} />)}
         {round?.phase === 'vote' && <VotePhase state={state} send={send} isStoryteller={isStoryteller} />}
@@ -101,7 +100,6 @@ function Hand({
   actionLabel,
   disabled,
   flyingId = null,
-  send,
 }: {
   state: GameState
   selected: string | null
@@ -109,15 +107,7 @@ function Hand({
   actionLabel?: string
   disabled?: boolean
   flyingId?: string | null
-  /** When given, the hand offers its custom slot: create your own sound while you can still play it. */
-  send?: (msg: ClientMessage) => void
 }) {
-  const [formOpen, setFormOpen] = useState(false)
-  const [draft, setDraft] = useState<SoundDraft>({ text: '', emotion: '' })
-  const round = state.round
-  const slot = state.you.customSlot
-  const canCreate = !!send && !!round && (round.phase === 'storyteller' || round.phase === 'submit') && !round.yourSubmission
-  const createState: CustomSlotState | null = canCreate && slot !== undefined && slot !== 'ready' ? slot : null
   return (
     <section aria-label="Your hand">
       <div className="hand hand--dealt">
@@ -131,22 +121,9 @@ function Hand({
             onSelect={onSelect}
             actionLabel={actionLabel}
             disabled={disabled}
-            badge={clip.custom ? 'your sound' : undefined}
           />
         ))}
-        {createState && <CustomSlotCard state={createState} onOpen={() => setFormOpen(true)} />}
       </div>
-      {send && createState && createState !== 'generating' && formOpen && (
-        <CreateSoundForm
-          initial={draft}
-          onCancel={() => setFormOpen(false)}
-          onSubmit={(d) => {
-            setDraft(d)
-            setFormOpen(false)
-            send({ type: 'generate_sound', text: d.text, emotion: d.emotion })
-          }}
-        />
-      )}
     </section>
   )
 }
@@ -160,7 +137,6 @@ function StorytellerPhase({ state, send }: Props) {
       <p className="instruction">Listen to your clips, pick one and write a clue for it.</p>
       <Hand
         state={state}
-        send={send}
         selected={clipId}
         onSelect={(id) => {
           sfx('select')
@@ -193,7 +169,7 @@ function StorytellerPhase({ state, send }: Props) {
   )
 }
 
-function WaitForClue({ state, send }: Props) {
+function WaitForClue({ state }: { state: GameState }) {
   const storyteller = state.players.find((p) => p.isStoryteller)
   return (
     <>
@@ -201,7 +177,7 @@ function WaitForClue({ state, send }: Props) {
         Waiting for {storyteller ? <PlayerName player={storyteller} /> : 'the storyteller'} to write a clue
         <span className="dots">…</span>
       </p>
-      <Hand state={state} selected={null} send={send} />
+      <Hand state={state} selected={null} />
     </>
   )
 }
@@ -222,7 +198,6 @@ function SubmitPhase({ state, send }: Props) {
       )}
       <Hand
         state={state}
-        send={send}
         selected={submitted}
         flyingId={flyId}
         onSelect={
