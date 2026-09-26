@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 dixvoice-frontend.zip
+
+# mobile no-scroll check screenshots
+mobile-fit

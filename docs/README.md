@@ -84,8 +84,26 @@ Layout and styling:
 
 - **Mobile first**: the game must be fully playable on a phone in portrait orientation (from 360px wide), both in a
   mobile browser and in the itch.io embed, and scale up to tablet and desktop.
-- Touch-friendly: tap targets of at least 44px, no hover-only interactions, no horizontal scrolling. The hand of 6
-  clips stacks or wraps on narrow screens.
+- Touch-friendly: tap targets of at least 44px, no hover-only interactions, no horizontal scrolling.
+- **No page scrolling on phones**: every screen (home, lobby, each round phase for the storyteller and for a player,
+  end of game) fits the visible viewport in portrait, from 360x640 up. Layout rules:
+  - The app shell is `height: 100dvh` (fallback `100vh`) with `overflow: hidden` on the page and
+    `env(safe-area-inset-*)` padding. Each screen is a flex column: an optional tutorial cue card slot at the top
+    (~72px on phones), a compact one-line header (room code, round, score, and buttons that open the Scores
+    sheet), a flexible body (`.screen__body`, `min-height: 0`) and an action bar pinned at the bottom with the
+    primary button.
+  - The hand and the vote table are a CSS grid (`.hand`, 2x2 up to 4 clips, 3x2 up to 6, 4x2 for 7-8) sized from
+    the body's leftover height with container query units, so cards shrink to fit and never push the action bar
+    off screen. On wide screens the grid is a single row and the page is centred at `--max-width`.
+  - Scoreboard and player list are not inline on game screens: they live in a bottom sheet opened from the header.
+    The reveal shows a compact summary (who submitted which clip, votes, points this round) inline.
+  - Long content scrolls or truncates inside its own element, never the page: a long clue is clamped to two lines
+    with a "More" toggle, the lobby player list scrolls internally.
+  - `@media (max-height: 740px)` compacts spacing and type and drops decorative tilts and shadows for the shortest
+    phones (360x640, 375x667).
+  - `npm run check:mobile` (Playwright + the mock backend) asserts, for each target viewport and each screen/phase/role,
+    that the page does not scroll and that the clue, all clips and the primary button are inside the viewport
+    (4 and 8 players, short and long clue). `--shots` writes screenshots to `mobile-fit/`.
 - **Visual identity**: the "Tape Deck" theme described in [docs/design.md](docs/design.md) (palette, fonts, logo and
   components). Plain CSS, no UI framework. Colors, fonts, radii and shadows live in CSS variables in
   `src/index.css`; components never hard-code them.

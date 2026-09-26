@@ -35,6 +35,8 @@ VITE_BACKEND_URL=http://localhost:9000 npm run dev
 
 - `npm run dev`, `npm run build`, `npm run preview`
 - `npm run lint` (oxlint), `npm test` (Vitest + Testing Library)
+- `npm run check:mobile [-- --shots]`: Playwright no-scroll check on phone viewports against the mock backend
+  (needs `npx playwright install chromium` once); `--shots` writes screenshots to `mobile-fit/`
 - `npm run mock`: dev mock backend
 - `npm run package`: builds with the current `VITE_BACKEND_URL` and zips `dist/` into `dixvoice-frontend.zip`
 
