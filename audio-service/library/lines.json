@@ -1,32 +1,578 @@
 [
-  {"text": "Trop tard !", "emotion": "angry"},
-  {"text": "Qui a mangé mon gâteau ?", "emotion": "furieux"},
-  {"text": "Chut… ils arrivent.", "emotion": "chuchoté"},
-  {"text": "On a gagné !", "emotion": "joyful"},
-  {"text": "Je savais que tu viendrais.", "emotion": "mystérieux"},
-  {"text": "Encore toi ?", "emotion": "blasé"},
-  {"text": "C'est pas moi !", "emotion": "effrayé"},
-  {"text": "Oh non… pas encore.", "emotion": "triste"},
-  {"text": "Hahaha, bien joué !", "emotion": "rieur"},
-  {"text": "Tu entends ce bruit ?", "emotion": "inquiétant"},
-  {"text": "Et maintenant, on fait quoi ?", "emotion": "perplexe"},
-  {"text": "Je reviens tout de suite.", "emotion": "calme"},
-  {"text": "Mesdames et messieurs !", "emotion": "théâtral"},
-  {"text": "Vite, cours !", "emotion": "excité"},
-  {"text": "Ça sent le brûlé.", "emotion": "surpris"},
-  {"text": "Tu m'as manqué.", "emotion": "doux"},
-  {"text": "Pas si vite, mon ami.", "emotion": "taquin"},
-  {"text": "Il est déjà là.", "emotion": "sinistre"},
-  {"text": "Who ate my sandwich?", "emotion": "angry"},
-  {"text": "Is anyone there?", "emotion": "eerie"},
-  {"text": "We did it!", "emotion": "joyful"},
-  {"text": "Not again…", "emotion": "sad"},
-  {"text": "Shh, don't move.", "emotion": "whisper"},
-  {"text": "Wait, what was that?", "emotion": "surprised"},
-  {"text": "Ladies and gentlemen!", "emotion": "dramatic"},
-  {"text": "Oh, you shouldn't have.", "emotion": "sarcastic"},
-  {"text": "Run!", "emotion": "excited"},
-  {"text": "I knew it was you.", "emotion": "mysterious"},
-  {"text": "Five more minutes…", "emotion": "tired"},
-  {"text": "That tickles!", "emotion": "laughing"}
+ {
+  "text": "Who ate my sandwich?",
+  "emotion": "angry"
+ },
+ {
+  "text": "Give it back. Now.",
+  "emotion": "angry"
+ },
+ {
+  "text": "You had one job!",
+  "emotion": "angry"
+ },
+ {
+  "text": "Get out of my house!",
+  "emotion": "angry"
+ },
+ {
+  "text": "That was mine!",
+  "emotion": "angry"
+ },
+ {
+  "text": "Stop touching my stuff!",
+  "emotion": "angry"
+ },
+ {
+  "text": "I said no!",
+  "emotion": "angry"
+ },
+ {
+  "text": "Don't you dare!",
+  "emotion": "angry"
+ },
+ {
+  "text": "Unbelievable. Again?",
+  "emotion": "angry"
+ },
+ {
+  "text": "Who left the door open?",
+  "emotion": "angry"
+ },
+ {
+  "text": "You broke it, didn't you?",
+  "emotion": "angry"
+ },
+ {
+  "text": "Enough is enough!",
+  "emotion": "angry"
+ },
+ {
+  "text": "I will find you.",
+  "emotion": "furious"
+ },
+ {
+  "text": "This is the last time!",
+  "emotion": "furious"
+ },
+ {
+  "text": "Who parked there?!",
+  "emotion": "furious"
+ },
+ {
+  "text": "Is anyone there?",
+  "emotion": "eerie"
+ },
+ {
+  "text": "Did you hear that?",
+  "emotion": "eerie"
+ },
+ {
+  "text": "It's too quiet here.",
+  "emotion": "eerie"
+ },
+ {
+  "text": "The lights just went out.",
+  "emotion": "eerie"
+ },
+ {
+  "text": "Someone is watching us.",
+  "emotion": "eerie"
+ },
+ {
+  "text": "Don't look behind you.",
+  "emotion": "eerie"
+ },
+ {
+  "text": "It knows your name.",
+  "emotion": "eerie"
+ },
+ {
+  "text": "The door was locked.",
+  "emotion": "eerie"
+ },
+ {
+  "text": "Footsteps upstairs…",
+  "emotion": "eerie"
+ },
+ {
+  "text": "It's getting closer.",
+  "emotion": "eerie"
+ },
+ {
+  "text": "I knew it was you.",
+  "emotion": "mysterious"
+ },
+ {
+  "text": "Follow the white rabbit.",
+  "emotion": "mysterious"
+ },
+ {
+  "text": "The key is under the moon.",
+  "emotion": "mysterious"
+ },
+ {
+  "text": "Some doors should stay closed.",
+  "emotion": "mysterious"
+ },
+ {
+  "text": "Not everything is as it seems.",
+  "emotion": "mysterious"
+ },
+ {
+  "text": "Meet me at midnight.",
+  "emotion": "mysterious"
+ },
+ {
+  "text": "The answer was always there.",
+  "emotion": "mysterious"
+ },
+ {
+  "text": "You were never here.",
+  "emotion": "mysterious"
+ },
+ {
+  "text": "You shouldn't have come.",
+  "emotion": "menacing"
+ },
+ {
+  "text": "Nobody leaves this room.",
+  "emotion": "menacing"
+ },
+ {
+  "text": "Tick tock, tick tock.",
+  "emotion": "menacing"
+ },
+ {
+  "text": "I've been waiting for you.",
+  "emotion": "menacing"
+ },
+ {
+  "text": "We did it!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "Best day ever!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "Happy birthday!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "It's snowing outside!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "Look, a rainbow!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "I got the job!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "Surprise!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "We're going to the beach!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "Finally, the weekend!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "It's a baby girl!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "I love this song!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "Welcome home!",
+  "emotion": "joyful"
+ },
+ {
+  "text": "Run!",
+  "emotion": "excited"
+ },
+ {
+  "text": "Hurry, it's starting!",
+  "emotion": "excited"
+ },
+ {
+  "text": "Let's go, let's go!",
+  "emotion": "excited"
+ },
+ {
+  "text": "Jump now!",
+  "emotion": "excited"
+ },
+ {
+  "text": "It's happening!",
+  "emotion": "excited"
+ },
+ {
+  "text": "Grab the popcorn!",
+  "emotion": "excited"
+ },
+ {
+  "text": "Faster, faster!",
+  "emotion": "excited"
+ },
+ {
+  "text": "Open it, open it!",
+  "emotion": "excited"
+ },
+ {
+  "text": "Here it comes!",
+  "emotion": "excited"
+ },
+ {
+  "text": "We're on air!",
+  "emotion": "excited"
+ },
+ {
+  "text": "Not again…",
+  "emotion": "sad"
+ },
+ {
+  "text": "I miss you.",
+  "emotion": "sad"
+ },
+ {
+  "text": "It's over now.",
+  "emotion": "sad"
+ },
+ {
+  "text": "Goodbye, old friend.",
+  "emotion": "sad"
+ },
+ {
+  "text": "Nobody came.",
+  "emotion": "sad"
+ },
+ {
+  "text": "The ice cream fell.",
+  "emotion": "sad"
+ },
+ {
+  "text": "I lost it forever.",
+  "emotion": "sad"
+ },
+ {
+  "text": "It was never enough.",
+  "emotion": "sad"
+ },
+ {
+  "text": "Maybe next year.",
+  "emotion": "sad"
+ },
+ {
+  "text": "The last leaf fell.",
+  "emotion": "sad"
+ },
+ {
+  "text": "Five more minutes…",
+  "emotion": "tired"
+ },
+ {
+  "text": "I need coffee.",
+  "emotion": "tired"
+ },
+ {
+  "text": "Is it Monday again?",
+  "emotion": "tired"
+ },
+ {
+  "text": "Wake me up later.",
+  "emotion": "tired"
+ },
+ {
+  "text": "Just one more episode.",
+  "emotion": "tired"
+ },
+ {
+  "text": "I can't feel my legs.",
+  "emotion": "tired"
+ },
+ {
+  "text": "Shh, don't move.",
+  "emotion": "whisper"
+ },
+ {
+  "text": "Keep it a secret.",
+  "emotion": "whisper"
+ },
+ {
+  "text": "They can hear us.",
+  "emotion": "whisper"
+ },
+ {
+  "text": "Close your eyes.",
+  "emotion": "whisper"
+ },
+ {
+  "text": "Not a single word.",
+  "emotion": "whisper"
+ },
+ {
+  "text": "Come closer.",
+  "emotion": "whisper"
+ },
+ {
+  "text": "Stay very still.",
+  "emotion": "whisper"
+ },
+ {
+  "text": "Listen carefully.",
+  "emotion": "whisper"
+ },
+ {
+  "text": "Take a deep breath.",
+  "emotion": "calm"
+ },
+ {
+  "text": "Everything will be fine.",
+  "emotion": "calm"
+ },
+ {
+  "text": "The tea is ready.",
+  "emotion": "calm"
+ },
+ {
+  "text": "Let it go.",
+  "emotion": "calm"
+ },
+ {
+  "text": "The tide is coming in.",
+  "emotion": "calm"
+ },
+ {
+  "text": "Just breathe.",
+  "emotion": "calm"
+ },
+ {
+  "text": "Wait, what was that?",
+  "emotion": "surprised"
+ },
+ {
+  "text": "No way!",
+  "emotion": "surprised"
+ },
+ {
+  "text": "Since when?",
+  "emotion": "surprised"
+ },
+ {
+  "text": "You're kidding me!",
+  "emotion": "surprised"
+ },
+ {
+  "text": "Is that a cat?",
+  "emotion": "surprised"
+ },
+ {
+  "text": "It actually worked!",
+  "emotion": "surprised"
+ },
+ {
+  "text": "Who invited him?",
+  "emotion": "surprised"
+ },
+ {
+  "text": "How did you get in here?",
+  "emotion": "surprised"
+ },
+ {
+  "text": "Please, don't go!",
+  "emotion": "scared"
+ },
+ {
+  "text": "What was that noise?",
+  "emotion": "scared"
+ },
+ {
+  "text": "I'm not going in there.",
+  "emotion": "scared"
+ },
+ {
+  "text": "Something touched my foot!",
+  "emotion": "scared"
+ },
+ {
+  "text": "Don't turn off the light!",
+  "emotion": "scared"
+ },
+ {
+  "text": "We need to leave. Now.",
+  "emotion": "scared"
+ },
+ {
+  "text": "What's inside the box?",
+  "emotion": "curious"
+ },
+ {
+  "text": "Where does this door go?",
+  "emotion": "curious"
+ },
+ {
+  "text": "Have you seen this before?",
+  "emotion": "curious"
+ },
+ {
+  "text": "What if we pressed it?",
+  "emotion": "curious"
+ },
+ {
+  "text": "Who wrote this letter?",
+  "emotion": "curious"
+ },
+ {
+  "text": "Ladies and gentlemen!",
+  "emotion": "dramatic"
+ },
+ {
+  "text": "And the winner is…",
+  "emotion": "dramatic"
+ },
+ {
+  "text": "It was the butler!",
+  "emotion": "dramatic"
+ },
+ {
+  "text": "This changes everything.",
+  "emotion": "dramatic"
+ },
+ {
+  "text": "Our last hope.",
+  "emotion": "dramatic"
+ },
+ {
+  "text": "The prophecy was true!",
+  "emotion": "dramatic"
+ },
+ {
+  "text": "Behold!",
+  "emotion": "dramatic"
+ },
+ {
+  "text": "To be continued…",
+  "emotion": "dramatic"
+ },
+ {
+  "text": "Oh, you shouldn't have.",
+  "emotion": "sarcastic"
+ },
+ {
+  "text": "Great. Just great.",
+  "emotion": "sarcastic"
+ },
+ {
+  "text": "What a surprise.",
+  "emotion": "sarcastic"
+ },
+ {
+  "text": "Sure, take your time.",
+  "emotion": "sarcastic"
+ },
+ {
+  "text": "Wow, so brave.",
+  "emotion": "sarcastic"
+ },
+ {
+  "text": "Oh, perfect timing.",
+  "emotion": "sarcastic"
+ },
+ {
+  "text": "Well, that went well.",
+  "emotion": "sarcastic"
+ },
+ {
+  "text": "That tickles!",
+  "emotion": "laughing"
+ },
+ {
+  "text": "Stop, I can't breathe!",
+  "emotion": "laughing"
+ },
+ {
+  "text": "You look ridiculous!",
+  "emotion": "laughing"
+ },
+ {
+  "text": "Not the chicken again!",
+  "emotion": "laughing"
+ },
+ {
+  "text": "Oh my, that's hilarious!",
+  "emotion": "laughing"
+ },
+ {
+  "text": "He fell in the pool!",
+  "emotion": "laughing"
+ },
+ {
+  "text": "Catch me if you can!",
+  "emotion": "playful"
+ },
+ {
+  "text": "Guess who?",
+  "emotion": "playful"
+ },
+ {
+  "text": "Bet you can't find me.",
+  "emotion": "playful"
+ },
+ {
+  "text": "Race you to the door!",
+  "emotion": "playful"
+ },
+ {
+  "text": "Peekaboo!",
+  "emotion": "playful"
+ },
+ {
+  "text": "Last one there is a potato!",
+  "emotion": "playful"
+ },
+ {
+  "text": "Nice try!",
+  "emotion": "playful"
+ },
+ {
+  "text": "Your order is ready.",
+  "emotion": "neutral"
+ },
+ {
+  "text": "Please mind the gap.",
+  "emotion": "neutral"
+ },
+ {
+  "text": "The meeting is cancelled.",
+  "emotion": "neutral"
+ },
+ {
+  "text": "Next stop, the station.",
+  "emotion": "neutral"
+ },
+ {
+  "text": "Did you lock the car?",
+  "emotion": "neutral"
+ },
+ {
+  "text": "The train is late.",
+  "emotion": "neutral"
+ },
+ {
+  "text": "Please hold the line.",
+  "emotion": "neutral"
+ },
+ {
+  "text": "Turn left here.",
+  "emotion": "neutral"
+ }
 ]

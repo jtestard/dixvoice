@@ -81,7 +81,9 @@ Errors are flat: `{"error": "<code>", "message": "…"}`.
 
 ## Library
 
-The library is made of short spoken lines rendered with the same pipeline:
+The library is made of short spoken lines rendered with the same pipeline: currently **144 English lines** over 19
+emotions and the 9 English preset voices (0.6 to 1.95 s each, about 1.1 MB in total), enough for a full game of 4
+players (6 fresh clips per player per round).
 
 ```bash
 # edit library/lines.json, then
@@ -134,7 +136,7 @@ Clips last 0.5 to 1.5 s; the French lines were spoken at about 24 characters per
 
 - Done: the three contract endpoints, Gradium client, fake provider, 2-second fit, mp3, UUIDs, persistence of
   generated sounds across restarts, library builder, tests (contract checked against `spec/`).
-- To do: more latency measurements (`tools/probe_latency.py`, to adapt), library content, Voice Design voices for emotions the catalogue lacks
+- To do: more latency measurements (`tools/probe_latency.py`, to adapt), more library content, Voice Design voices for emotions the catalogue lacks
   (`tools/design_voices.py`).
 
 ## Tools used
