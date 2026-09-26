@@ -21,12 +21,24 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 30
+    },
+    "voiceId": {
+      "description": "Optional. Id of the Gradium voice to speak with (a catalogue voice or one of the team's custom voices). When absent, the service picks a voice from the emotion and the language of the text.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
     }
   },
   "examples": [
     {
       "text": "Is anyone there?",
       "emotion": "eerie"
+    },
+    {
+      "text": "Is anyone there?",
+      "emotion": "eerie",
+      "voiceId": "6MFfc37kq0sBjBjy"
     }
   ]
 }

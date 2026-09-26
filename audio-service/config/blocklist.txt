@@ -1,0 +1,19 @@
+# Words refused in the text or the emotion (compared lowercase, without accents, whole words). One per line.
+# A short starting list: extend it before the demo.
+connard
+connasse
+salope
+encule
+enculé
+pute
+fils de pute
+nique ta mere
+pd
+fuck
+fucking
+motherfucker
+cunt
+bitch
+whore
+faggot
+nigger

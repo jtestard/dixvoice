@@ -1,0 +1,15 @@
+{
+  "_comment": "Internal presets: emotion -> Gradium voice (FR or EN, chosen from the text language) + settings. Voice ids are Gradium flagship voices (docs.gradium.ai/guides/voices/flagship-voices). temp: 0.0-1.4 (liveliness); padding_bonus: -4..4 (negative = faster). To replace by Voice Design voices when available.",
+  "default": "neutral",
+  "presets": [
+    {"id": "neutral",    "voice_fr": "iEu63s1rhn_kegTr", "voice_en": "4SZHfMpw-p46Ywgs", "temp": 0.7, "padding_bonus": 0.0, "_voices": "Gaspard (warm, grounded) / Harper (confident, friendly)"},
+    {"id": "joyful",     "voice_fr": "YhIHaAfQ0cQPDV9R", "voice_en": "YVzbrdWnnu9FgRn5", "temp": 0.9, "padding_bonus": 0.0, "_voices": "Solène (bright, enthusiastic) / Sunnie (joyful, bubbly)"},
+    {"id": "excited",    "voice_fr": "s048cR1l2Jmu4k3B", "voice_en": "KUpE0JVhjiIzp1Fk", "temp": 1.0, "padding_bonus": -1.0, "_voices": "Maëlys (energetic) / Damon (unfiltered excitement)"},
+    {"id": "playful",    "voice_fr": "FXxJ9mANRq6BCTX5", "voice_en": "NbpkqMVS3CJeq2j8", "temp": 0.9, "padding_bonus": 0.0, "_voices": "Noémie (playful, expressive) / Zoey (playful, upbeat)"},
+    {"id": "laughing",   "voice_fr": "ZeSg853xFACESHHI", "voice_en": "Bla6SbVMczYnOhfK", "temp": 1.0, "padding_bonus": 0.0, "_voices": "Coralie (giggly) / Marlowe (a laugh under every word)"},
+    {"id": "intense",    "voice_fr": "25AzBFyp6svYnJsj", "voice_en": "_6Aslh2DxfmnRLmP", "temp": 1.0, "padding_bonus": -0.5, "_voices": "Damien (intense) / Russell (high-energy intensity)"},
+    {"id": "theatrical", "voice_fr": "YKeBw3OV1RgpdhLh", "voice_en": "6MFfc37kq0sBjBjy", "temp": 0.9, "padding_bonus": 0.0, "_voices": "Jules (lively, expressive) / Sterling (theatrical flair)"},
+    {"id": "calm",       "voice_fr": "iEu63s1rhn_kegTr", "voice_en": "POBHtemksfWQbng0", "temp": 0.5, "padding_bonus": 0.5, "_voices": "Gaspard (warm, grounded) / Garrett (low-pitched, quiet magnetism)"},
+    {"id": "curious",    "voice_fr": "Tek4tJXiX6_yvXq7", "voice_en": "vimnD4UQG_36P43U", "temp": 0.9, "padding_bonus": 0.0, "_voices": "Augustin (curious, animated) / Aoife (bright, lively)"}
+  ]
+}

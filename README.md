@@ -316,9 +316,11 @@ These files are the source of truth for the contract. The implementation plan of
 | --- | --- | --- |
 | `text` | string (1–100 chars) | Text to generate speech for. The frontend enforces the limit now; `POST /audio` will enforce it later. |
 | `emotion` | string (1–30 chars) | Emotion the text is spoken with, free text for now (e.g. `joyful`, `eerie`). |
+| `voiceId` | string, optional (1–64 chars, letters, digits, `_`, `-`) | Gradium voice to speak with. When absent, the service picks one from the emotion and the language of the text. |
 
 ```json
 { "text": "Is anyone there?", "emotion": "eerie" }
+{ "text": "Is anyone there?", "emotion": "eerie", "voiceId": "6MFfc37kq0sBjBjy" }
 ```
 
 **AudioResponse** is what every endpoint returns for a sound, library and generated sounds alike: the AudioRequest
@@ -329,7 +331,7 @@ fields, plus the fields set by the service.
 | `id` | string (UUID v4) | Unique identifier. |
 | `text` | string | Same as in the AudioRequest. |
 | `emotion` | string | Same as in the AudioRequest. |
-| `voiceId` | string | Id of the Gradium voice the service chose for this clip. |
+| `voiceId` | string | Gradium voice of the clip: the request's `voiceId` if given, otherwise the one the service chose. |
 | `clipUrl` | string (URL) | Public CDN URL of the mp3 file: `https://dp1tbjxi4bfec.cloudfront.net/audio/{id}.mp3`. |
 
 ```json

@@ -1,0 +1,9 @@
+# Internal only: no Ingress. The Go backend calls http://audio-service:8080 and proxies reads to the frontend.
+apiVersion: v1
+kind: Service
+metadata:
+  name: audio-service
+spec:
+  type: ClusterIP
+  selector: {app: audio-service}
+  ports: [{name: http, port: 8080, targetPort: http}]

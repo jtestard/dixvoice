@@ -1,0 +1,12 @@
+{
+  "_comment": "Free-text emotion words (FR and EN, compared lowercase and without accents) -> preset id. Unknown emotions use the default preset.",
+  "neutral": ["neutral", "neutre", "normal", "serious", "serieux", "serieuse"],
+  "joyful": ["joyful", "joy", "happy", "cheerful", "glad", "joyeux", "joyeuse", "heureux", "heureuse", "content", "contente", "gai", "gaie", "enjoue", "enjouee"],
+  "excited": ["excited", "enthusiastic", "hyped", "thrilled", "excite", "excitee", "enthousiaste", "surexcite", "surexcitee", "impatient", "impatiente"],
+  "playful": ["playful", "mischievous", "teasing", "cheeky", "sarcastic", "ironic", "espiegle", "taquin", "taquine", "malicieux", "malicieuse", "coquin", "coquine", "sarcastique", "ironique", "moqueur", "moqueuse"],
+  "laughing": ["laughing", "amused", "funny", "giggly", "hilarious", "rieur", "rieuse", "amuse", "amusee", "drole", "hilare"],
+  "intense": ["angry", "furious", "mad", "rage", "intense", "determined", "aggressive", "en colere", "colere", "furieux", "furieuse", "enerve", "enervee", "agressif", "agressive", "determine", "determinee", "rageur"],
+  "theatrical": ["dramatic", "theatrical", "epic", "mysterious", "eerie", "spooky", "creepy", "menacing", "dramatique", "theatral", "theatrale", "epique", "mysterieux", "mysterieuse", "inquietant", "inquietante", "effrayant", "menacant", "sinistre", "lugubre"],
+  "calm": ["calm", "sad", "tired", "gentle", "soft", "whisper", "whispering", "melancholic", "bored", "calme", "triste", "fatigue", "fatiguee", "doux", "douce", "chuchote", "murmure", "melancolique", "las", "lasse", "ennuye", "ennuyee"],
+  "curious": ["curious", "surprised", "confused", "amazed", "shocked", "scared", "afraid", "curieux", "curieuse", "surpris", "surprise", "etonne", "etonnee", "perplexe", "choque", "choquee", "effraye", "effrayee", "peur", "apeure"]
+}

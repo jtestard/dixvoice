@@ -31,7 +31,7 @@
       "maxLength": 30
     },
     "voiceId": {
-      "description": "Id of the Gradium voice the service chose for this clip.",
+      "description": "Id of the Gradium voice of this clip: the voiceId of the AudioRequest if one was given, otherwise the voice the service chose.",
       "type": "string",
       "minLength": 1
     },
