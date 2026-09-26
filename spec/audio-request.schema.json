@@ -11,10 +11,10 @@
   "additionalProperties": false,
   "properties": {
     "text": {
-      "description": "Text to generate speech for. Must be short enough to be spoken in at most 2 seconds.",
+      "description": "Text to generate speech for (at most 100 characters). The frontend enforces the limit now; POST /audio will enforce it in a later version.",
       "type": "string",
       "minLength": 1,
-      "maxLength": 50
+      "maxLength": 100
     },
     "emotion": {
       "description": "Emotion the text is spoken with (free text for now, e.g. \"joyful\", \"eerie\", \"angry\").",

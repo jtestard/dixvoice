@@ -107,7 +107,8 @@ Screens and features:
 Audio playback:
 
 - Every clip in the state comes with its `clipUrl` (a CDN URL); the frontend plays it with an HTML `<audio>` element.
-  The frontend never calls `POST /audio` (the backend does).
+  The frontend never calls the audio service directly: the service is only reachable inside the cluster, and the
+  backend proxies the read endpoints (see Protocol).
 - Browsers block audio until the user interacts with the page, so playback always starts from a tap.
 
 Configuration (build-time env vars):
@@ -139,7 +140,10 @@ Responsibilities:
 - **Game rules**: deal a fresh hand every round from `GET /audio/list` minus the room's used sounds (shuffled), add
   the dealt clips to the used sounds, rotate the storyteller, enforce phase order, validate every action (right
   phase, right player, clip in hand, no self-vote), score each round and detect the end of game.
-- **Audio service**: the first version only calls `GET /audio/list`. It does not call `POST /audio`.
+- **Audio service**: the first version only calls `GET /audio/list` for dealing. It does not call `POST /audio`.
+- **Audio proxy**: the backend exposes the audio service's read endpoints to the frontend, which cannot reach the
+  service (see Protocol). It forwards the request and returns only each sound's `id` and `clipUrl`, never `text`,
+  `emotion` or `voiceId`.
 
 #### Protocol
 
@@ -151,6 +155,8 @@ HTTP:
 | --- | --- | --- |
 | `POST /rooms` | `{"nickname": "Ana"}` | `201 {"roomCode": "KXQP", "playerId": "p1", "token": "..."}` |
 | `POST /rooms/{code}/join` | `{"nickname": "Ben"}` | `200 {"roomCode": "KXQP", "playerId": "p2", "token": "..."}` |
+| `GET /audio/list` | | `200 [{"id": "...", "clipUrl": "..."}]`: proxy of the audio service |
+| `GET /audio/{id}` | | `200 {"id": "...", "clipUrl": "..."}`, `404`: proxy of the audio service |
 | `GET /healthz` | | `200` |
 
 Join errors: `404 room_not_found`, `409 room_full`, `409 game_started`, `400 invalid_nickname`.
@@ -256,7 +262,7 @@ Planned design, to build once the first version works:
 - Other players cannot tell a custom clip from a dealt one: the backend never tells them, and the audio service makes
   generated sounds indistinguishable from listed ones.
 - **Frontend**: the custom slot shows its state: empty (with a "Create a sound" action), generating, ready, or failed
-  (with a retry). "Create a sound" is a form with a text field (max 50 characters) and an emotion field (max 30
+  (with a retry). "Create a sound" is a form with a text field (max 100 characters) and an emotion field (max 30
   characters), sent to the backend.
 - **Backend**: on a player's request, call `POST /audio`, put the returned clip in the player's custom slot and add
   its id to the room's used sounds.
@@ -281,7 +287,7 @@ These files are the source of truth for the contract. The implementation plan of
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `text` | string (1–50 chars) | Text to generate speech for; short enough to be spoken in at most 2 seconds. |
+| `text` | string (1–100 chars) | Text to generate speech for. The frontend enforces the limit now; `POST /audio` will enforce it later. |
 | `emotion` | string (1–30 chars) | Emotion the text is spoken with, free text for now (e.g. `joyful`, `eerie`). |
 
 ```json
@@ -322,8 +328,9 @@ fields, plus the fields set by the service.
   seconds, so callers use a timeout of at least 30 seconds.
 - Errors are `{"error": "not_found", "message": "..."}`.
 - No authentication for now: the service is only reachable inside the cluster.
-- Only the backend calls `POST /audio`. The web app gets everything it needs from the backend's state (including each
-  clip's `clipUrl`), so the frontend does not have to call the service; it may use the GET endpoints if useful.
+- Only the backend calls the service. The frontend gets each clip's `clipUrl` from the backend's state, and reaches
+  the read endpoints through the backend's proxy (`GET /audio/list`, `GET /audio/{id}`) if it needs them. The service
+  itself needs no CORS.
 - Generated sounds must be indistinguishable from listed ones (every sound has a `voiceId`), so other players cannot
   tell a custom clip apart (needed for the custom sound iteration).
 

@@ -22,7 +22,7 @@
       "description": "Text the speech was generated from (same as in the AudioRequest).",
       "type": "string",
       "minLength": 1,
-      "maxLength": 50
+      "maxLength": 100
     },
     "emotion": {
       "description": "Emotion the text is spoken with (same as in the AudioRequest).",
